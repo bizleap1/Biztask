@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-black: #111111;
+  --color-brand-matte: #222222;
+  --color-brand-gray-light: #FAFAFA;
+  --color-brand-gray-medium: #E5E5E5;
+  --color-brand-gray-dark: #555555;
+  --color-brand-gray-muted: #777777;
+  --color-brand-white: #FFFFFF;
+
+  --color-bg-main: var(--color-brand-gray-light);
+  --color-bg-card: var(--color-brand-white);
+  
+  --color-text-main: var(--color-brand-black);
+  --color-text-muted: var(--color-brand-gray-dark);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg-main);
+    color: var(--color-text-main);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-[var(--color-brand-black)] hover:bg-[var(--color-brand-matte)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-colors;
+  }
+
+  .btn-secondary {
+    @apply w-full flex justify-center items-center py-2 px-4 border border-[var(--color-brand-gray-medium)] rounded-lg shadow-sm text-sm font-medium text-[var(--color-brand-black)] bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-colors;
+  }
+
+  .btn-danger {
+    @apply w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors;
+  }
+
+  .input-field {
+    @apply appearance-none block w-full px-3 py-2 border border-[var(--color-brand-gray-medium)] rounded-lg shadow-sm placeholder-[var(--color-brand-gray-muted)] focus:outline-none focus:ring-gray-300 focus:border-gray-300 sm:text-sm transition-colors;
+  }
+
+  .card {
+    @apply bg-white border border-[var(--color-brand-gray-medium)] rounded-xl pepper-shadow overflow-hidden;
+  }
+
+  .badge-success {
+    @apply px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-50 text-green-700 border border-green-100;
+  }
+
+  .badge-warning {
+    @apply px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-50 text-yellow-700 border border-yellow-100;
+  }
+
+  .badge-danger {
+    @apply px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-50 text-red-700 border border-red-100;
+  }
+
+  .badge-info {
+    @apply px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-100;
+  }
+
+  .badge-neutral {
+    @apply px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-200;
+  }
+}
+
+@layer utilities {
+  .pepper-shadow {
+    box-shadow: 0 2px 8px -2px rgba(17, 17, 17, 0.05), 0 4px 12px -4px rgba(17, 17, 17, 0.05);
+  }
+}

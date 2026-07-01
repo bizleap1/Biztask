@@ -1,0 +1,10 @@
+export default function Logo({ className = "w-8 h-8" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="64" height="64" rx="16" fill="#111111" className="fill-[var(--color-brand-black)]" />
+      <path d="M22 18H34C39.5228 18 44 22.4772 44 28C44 31.0664 42.6179 33.81 40.4079 35.6669C43.1818 37.4925 45 40.5408 45 44C45 49.5228 40.5228 54 35 54H22V18Z" fill="white"/>
+      <path d="M28 24V32H34C36.2091 32 38 30.2091 38 28C38 25.7909 36.2091 24 34 24H28Z" fill="#111111" className="fill-[var(--color-brand-black)]" />
+      <path d="M28 38V48H35C37.7614 48 40 45.7614 40 43C40 40.2386 37.7614 38 35 38H28Z" fill="#111111" className="fill-[var(--color-brand-black)]" />
+    </svg>
+  );
+}
