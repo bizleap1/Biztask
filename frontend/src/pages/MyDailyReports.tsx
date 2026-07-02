@@ -18,6 +18,8 @@ export default function MyDailyReports() {
     tomorrowPlan: '',
     attachments: ''
   });
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     fetchReports();
@@ -37,10 +39,24 @@ export default function MyDailyReports() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setUploading(true);
+      let attachmentUrl = formData.attachments;
+
+      if (attachmentFile) {
+        const { uploadFile } = await import('../services/api');
+        const uploadRes = await uploadFile(attachmentFile);
+        attachmentUrl = uploadRes.url;
+      }
+
+      const payload = {
+        ...formData,
+        attachments: attachmentUrl
+      };
+
       if (selectedReport && selectedReport.status !== 'Reviewed') {
-        await dailyReportService.updateReport(selectedReport.id, formData);
+        await dailyReportService.updateReport(selectedReport.id, payload);
       } else {
-        await dailyReportService.submitReport(formData);
+        await dailyReportService.submitReport(payload);
       }
       setShowSubmitModal(false);
       setSelectedReport(null);
@@ -49,6 +65,8 @@ export default function MyDailyReports() {
       alert('Report submitted successfully!');
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to submit report');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -65,6 +83,7 @@ export default function MyDailyReports() {
 
   const openSubmitModal = () => {
     resetForm();
+    setAttachmentFile(null);
     setSelectedReport(null);
     setShowSubmitModal(true);
   };
@@ -251,15 +270,24 @@ export default function MyDailyReports() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Attachments (Required File URL)</label>
-                  <input
-                    type="url"
-                    required
-                    className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                    value={formData.attachments}
-                    onChange={e => setFormData({...formData, attachments: e.target.value})}
-                    placeholder="https://..."
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Attachments (Required File or URL)</label>
+                  <div className="space-y-2">
+                    <input 
+                      type="file"
+                      onChange={e => setAttachmentFile(e.target.files ? e.target.files[0] : null)}
+                      className="w-full px-3 py-2 border rounded-md focus:ring-indigo-500 text-sm"
+                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    />
+                    <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
+                    <input
+                      type="url"
+                      className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      value={formData.attachments}
+                      onChange={e => setFormData({...formData, attachments: e.target.value})}
+                      placeholder="https://... (External Link)"
+                      disabled={!!attachmentFile}
+                    />
+                  </div>
                 </div>
               </form>
             </div>
@@ -273,9 +301,10 @@ export default function MyDailyReports() {
               <button 
                 type="submit"
                 form="reportForm"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                disabled={uploading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
               >
-                {selectedReport ? 'Resubmit Report' : 'Submit Report'}
+                {uploading ? 'Uploading...' : (selectedReport ? 'Resubmit Report' : 'Submit Report')}
               </button>
             </div>
           </div>

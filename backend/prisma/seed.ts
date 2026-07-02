@@ -4,97 +4,62 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Database...');
+  console.log('Starting Production Database Seeding...');
 
-  // 1. Departments
-  const devDept = await prisma.department.upsert({
+  // 1. Ensure basic departments exist
+  await prisma.department.upsert({
+    where: { name: 'Management' },
+    update: {},
+    create: { name: 'Management' },
+  });
+
+  await prisma.department.upsert({
     where: { name: 'Development' },
     update: {},
     create: { name: 'Development' },
   });
 
-  const mediaDept = await prisma.department.upsert({
+  await prisma.department.upsert({
     where: { name: 'Media' },
     update: {},
     create: { name: 'Media' },
   });
 
-  const salt = await bcrypt.genSalt(10);
-  const password = await bcrypt.hash('password123', salt);
+  const mgmtDept = await prisma.department.findUnique({ where: { name: 'Management' }});
 
-  // 2. SuperAdmin
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'admin@bizleap.com' },
-    update: {},
-    create: {
-      name: 'Super Admin',
-      email: 'admin@bizleap.com',
-      password,
-      role: 'SuperAdmin',
-      isActive: true,
-      mustChangePassword: false,
-    },
+  // 2. Safely Seed SuperAdmin
+  const existingSuperAdmin = await prisma.user.findFirst({
+    where: { role: 'SuperAdmin' }
   });
 
-  // 3. Managers
-  const devManager = await prisma.user.upsert({
-    where: { email: 'devmanager@bizleap.com' },
-    update: {},
-    create: {
-      name: 'Dev Manager',
-      email: 'devmanager@bizleap.com',
-      password,
-      role: 'Manager',
-      departmentId: devDept.id,
-      isActive: true,
-      mustChangePassword: false,
-    },
-  });
+  if (existingSuperAdmin) {
+    console.log('SuperAdmin already exists. Skipping seed.');
+  } else {
+    const adminName = process.env.SUPER_ADMIN_NAME;
+    const adminEmail = process.env.SUPER_ADMIN_EMAIL;
+    const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
 
-  // 4. Employees
-  const devEmp = await prisma.user.upsert({
-    where: { email: 'devemp@bizleap.com' },
-    update: {},
-    create: {
-      name: 'Dev Employee',
-      email: 'devemp@bizleap.com',
-      password,
-      role: 'DevEmployee',
-      departmentId: devDept.id,
-      designation: 'Frontend Dev',
-      isActive: true,
-      mustChangePassword: false,
-    },
-  });
+    if (!adminName || !adminEmail || !adminPassword) {
+      console.error('ERROR: Missing SUPER_ADMIN_* environment variables.');
+      process.exit(1);
+    }
 
-  const mediaEmp = await prisma.user.upsert({
-    where: { email: 'mediaemp@bizleap.com' },
-    update: {},
-    create: {
-      name: 'Media Employee',
-      email: 'mediaemp@bizleap.com',
-      password,
-      role: 'MediaEmployee',
-      departmentId: mediaDept.id,
-      designation: 'Video Editor',
-      isActive: true,
-      mustChangePassword: false,
-    },
-  });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(adminPassword, salt);
 
-  // 5. Viewer
-  const viewer = await prisma.user.upsert({
-    where: { email: 'hr@bizleap.com' },
-    update: {},
-    create: {
-      name: 'HR Viewer',
-      email: 'hr@bizleap.com',
-      password,
-      role: 'Viewer',
-      isActive: true,
-      mustChangePassword: false,
-    },
-  });
+    await prisma.user.create({
+      data: {
+        name: adminName,
+        email: adminEmail,
+        password: hashedPassword,
+        role: 'SuperAdmin',
+        departmentId: mgmtDept?.id,
+        isActive: true,
+        mustChangePassword: false,
+      },
+    });
+    console.log('SuperAdmin created successfully.');
+  }
 
   console.log('Seeding Complete!');
 }
@@ -102,7 +67,7 @@ async function main() {
 main()
   .catch((e) => {
     console.error(e);
-    throw e;
+    process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();

@@ -56,6 +56,11 @@ export const login = async (req: Request, res: Response) => {
 // Setup initial admin if no users exist
 export const setup = async (req: Request, res: Response) => {
   try {
+    const setupSecret = req.headers['x-setup-secret'];
+    if (!setupSecret || setupSecret !== process.env.SETUP_SECRET) {
+      return res.status(401).json({ message: 'Unauthorized setup request' });
+    }
+
     const superAdminCount = await prisma.user.count({ where: { role: 'SuperAdmin' } });
     if (superAdminCount > 0) {
       return res.status(400).json({ message: 'SuperAdmin already exists' });

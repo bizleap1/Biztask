@@ -20,6 +20,8 @@ export default function TaskDetails() {
     blockers: '',
     notes: ''
   });
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Edit Task Modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -79,11 +81,31 @@ export default function TaskDetails() {
   const handleSubmitWork = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await taskService.submitTask(task.id, formData);
+      setUploading(true);
+      let proofUrl = formData.proofUrl;
+      let proofFileName = '';
+
+      if (proofFile) {
+        const { uploadFile } = await import('../services/api');
+        const uploadRes = await uploadFile(proofFile);
+        proofUrl = uploadRes.url;
+        proofFileName = uploadRes.fileName;
+      }
+
+      const payload = {
+        ...formData,
+        proofUrl: proofUrl,
+        proofFileName: proofFileName || undefined
+      };
+
+      await taskService.submitTask(task.id, payload);
       setShowSubmitModal(false);
+      setProofFile(null);
       fetchTask();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to submit task');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -310,17 +332,26 @@ export default function TaskDetails() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Proof URL / Link {task.proofRequired && '*'}
+                      Proof File / Link {task.proofRequired && '*'}
                     </label>
-                    <input 
-                      type={task.proofRequired ? 'url' : 'text'} 
-                      required={task.proofRequired}
-                      value={formData.proofUrl} 
-                      onChange={e => setFormData({...formData, proofUrl: e.target.value})} 
-                      className="w-full px-3 py-2 border rounded-md focus:ring-purple-500" 
-                      placeholder="https://..."
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Provide a link to the proof (e.g. Google Drive, PR link).</p>
+                    <div className="space-y-2">
+                      <input 
+                        type="file"
+                        onChange={e => setProofFile(e.target.files ? e.target.files[0] : null)}
+                        className="w-full px-3 py-2 border rounded-md focus:ring-purple-500 text-sm"
+                        accept="image/*,application/pdf,video/*"
+                      />
+                      <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
+                      <input 
+                        type="url" 
+                        value={formData.proofUrl} 
+                        onChange={e => setFormData({...formData, proofUrl: e.target.value})} 
+                        className="w-full px-3 py-2 border rounded-md focus:ring-purple-500" 
+                        placeholder="https://... (External Link)"
+                        disabled={!!proofFile}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Upload a file or provide an external link to your work.</p>
                   </div>
                 </div>
 
@@ -336,8 +367,8 @@ export default function TaskDetails() {
             </div>
             <div className="p-6 border-t flex justify-end gap-3 bg-gray-50">
               <button type="button" onClick={() => setShowSubmitModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">Cancel</button>
-              <button type="submit" form="submit-form" className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 shadow-sm font-medium flex items-center gap-2">
-                <Check size={18} /> Submit Work
+              <button type="submit" form="submit-form" disabled={uploading} className="px-4 py-2 bg-[var(--color-brand-black)] text-white rounded-md hover:bg-[var(--color-brand-matte)] shadow-sm font-medium flex items-center gap-2 disabled:opacity-50">
+                <Check size={18} /> {uploading ? 'Uploading...' : 'Submit Work'}
               </button>
             </div>
           </div>
