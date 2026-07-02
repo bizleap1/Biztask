@@ -14,6 +14,8 @@
   
   --color-text-main: var(--color-brand-black);
   --color-text-muted: var(--color-brand-gray-dark);
+  
+  --shadow-pepper: 0 2px 8px -2px rgba(17, 17, 17, 0.05), 0 4px 12px -4px rgba(17, 17, 17, 0.05);
 }
 
 @layer base {
@@ -44,7 +46,7 @@
   }
 
   .card {
-    @apply bg-white border border-[var(--color-brand-gray-medium)] rounded-xl pepper-shadow overflow-hidden;
+    @apply bg-white border border-[var(--color-brand-gray-medium)] rounded-xl shadow-pepper overflow-hidden;
   }
 
   .badge-success {
@@ -68,8 +70,3 @@
   }
 }
 
-@layer utilities {
-  .pepper-shadow {
-    box-shadow: 0 2px 8px -2px rgba(17, 17, 17, 0.05), 0 4px 12px -4px rgba(17, 17, 17, 0.05);
-  }
-}

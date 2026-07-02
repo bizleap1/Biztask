@@ -67,8 +67,8 @@ function App() {
             <ActivityLogs />
           </AuthGuard>
         } />
-        <Route path="reports" element={<div className="p-4 bg-white rounded-xl pepper-shadow">Reports Feature Coming Soon</div>} />
-        <Route path="settings" element={<div className="p-4 bg-white rounded-xl pepper-shadow">Settings Feature Coming Soon</div>} />
+        <Route path="reports" element={<div className="p-4 bg-white rounded-xl shadow-pepper">Reports Feature Coming Soon</div>} />
+        <Route path="settings" element={<div className="p-4 bg-white rounded-xl shadow-pepper">Settings Feature Coming Soon</div>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

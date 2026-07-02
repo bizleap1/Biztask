@@ -63,7 +63,7 @@ export default function ChangePassword() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 pepper-shadow sm:rounded-lg sm:px-10 border border-gray-100">
+        <div className="bg-white py-8 px-4 shadow-pepper sm:rounded-lg sm:px-10 border border-gray-100">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm border border-red-100">
