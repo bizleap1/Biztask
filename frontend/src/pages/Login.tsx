@@ -112,15 +112,7 @@ export default function Login() {
               </button>
             </div>
             
-            <div className="pt-2">
-              <button 
-                type="button" 
-                onClick={() => performLogin('admin@bizleap.com', 'SecurePassword123!')}
-                className="w-full flex justify-center items-center py-2.5 px-4 border border-yellow-300 rounded-lg shadow-sm text-sm font-medium text-yellow-800 bg-yellow-50 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors"
-              >
-                🚀 Bypass: Super Admin Login
-              </button>
-            </div>
+
           </form>
         </div>
       </div>
