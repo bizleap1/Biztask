@@ -305,6 +305,8 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
     await prisma.comment.deleteMany({ where: { userId } });
     await prisma.notification.deleteMany({ where: { userId } });
     await prisma.activityLog.deleteMany({ where: { userId } });
+    await prisma.dailyReport.deleteMany({ where: { userId } });
+    await prisma.dailyReport.updateMany({ where: { reviewedById: userId }, data: { reviewedById: null } });
     
     // Update tasks assigned TO this user to be Unassigned
     await prisma.task.updateMany({
