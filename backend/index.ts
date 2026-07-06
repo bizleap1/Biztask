@@ -11,6 +11,7 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import activityLogRoutes from './routes/activityLogRoutes';
 import uploadRoutes from './routes/uploadRoutes';
+import systemRoutes from './routes/systemRoutes';
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/system', systemRoutes);
 
 // Other routes will be added later
 

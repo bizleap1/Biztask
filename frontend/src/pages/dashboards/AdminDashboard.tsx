@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { dashboardService } from '../../services/dashboardService';
+import { clearSystemData } from '../../services/api';
 import { Users, FileText, CheckCircle, AlertTriangle, Filter, LayoutDashboard, Activity } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -21,6 +22,19 @@ export default function AdminDashboard() {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClearData = async () => {
+    if (window.confirm("WARNING: This will permanently delete ALL tasks, reports, submissions, notifications, and activity logs. Users and departments will remain. Are you absolutely sure?")) {
+      try {
+        await clearSystemData();
+        alert("System data cleared successfully.");
+        fetchData();
+      } catch (error) {
+        console.error("Failed to clear data", error);
+        alert("Error clearing data. Please try again.");
+      }
     }
   };
 
@@ -70,6 +84,13 @@ export default function AdminDashboard() {
           />
           <button onClick={fetchData} className="ml-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors p-2">
             Refresh
+          </button>
+          <div className="h-6 w-px bg-gray-200"></div>
+          <button 
+            onClick={handleClearData} 
+            className="ml-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded text-sm font-bold transition-colors"
+          >
+            Clear All Data
           </button>
         </div>
       </div>

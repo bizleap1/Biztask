@@ -38,4 +38,9 @@ export const uploadFile = async (file: File) => {
   return response.data;
 };
 
+export const clearSystemData = async () => {
+  const response = await api.delete('/system/clear-data');
+  return response.data;
+};
+
 export default api;
