@@ -128,7 +128,7 @@ export default function Tasks() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <p className="text-sm text-gray-500 font-medium">Total</p>
           <p className="text-2xl font-bold text-gray-900">{stats.total}</p>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { dashboardService } from '../../services/dashboardService';
-import { Users, FileText, AlertTriangle, LayoutDashboard, Target, Activity } from 'lucide-react';
+import { Users, FileText, AlertTriangle, LayoutDashboard, Target, Activity, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { Link } from 'react-router-dom';
 
@@ -44,28 +44,29 @@ export default function ManagerDashboard() {
           <p className="text-gray-500 mt-1">Overview of your department's performance.</p>
         </div>
         
-        <div className="flex gap-3 items-center bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+        <div className="w-full md:w-auto flex flex-wrap gap-2 md:gap-3 items-center bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+          <Filter className="text-gray-400 ml-2" size={18} />
           <input 
             type="date"
-            className="p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
+            className="w-full sm:w-auto p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
             value={filters.startDate}
             onChange={e => setFilters({...filters, startDate: e.target.value})}
           />
           <span className="text-gray-400 text-sm">to</span>
           <input 
             type="date"
-            className="p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
+            className="w-full sm:w-auto p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
             value={filters.endDate}
             onChange={e => setFilters({...filters, endDate: e.target.value})}
           />
-          <button onClick={fetchData} className="ml-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors p-2">
+          <button onClick={fetchData} className="w-full sm:w-auto ml-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors p-2">
             Refresh
           </button>
         </div>
       </div>
 
       {/* Primary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start">
             <div>

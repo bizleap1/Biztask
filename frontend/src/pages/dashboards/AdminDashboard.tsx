@@ -57,10 +57,10 @@ export default function AdminDashboard() {
           <p className="text-gray-500 mt-1">Company-wide performance and operations overview.</p>
         </div>
         
-        <div className="flex flex-wrap gap-3 items-center bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+        <div className="w-full md:w-auto flex flex-wrap gap-2 md:gap-3 items-center bg-white p-2 rounded-lg shadow-sm border border-gray-100">
           <Filter className="text-gray-400 ml-2" size={18} />
           <select 
-            className="p-2 bg-transparent border-none outline-none text-sm font-medium text-gray-600"
+            className="w-full sm:w-auto p-2 bg-transparent border-none outline-none text-sm font-medium text-gray-600"
             value={filters.department}
             onChange={e => setFilters({...filters, department: e.target.value})}
           >
@@ -71,14 +71,14 @@ export default function AdminDashboard() {
           <div className="h-6 w-px bg-gray-200"></div>
           <input 
             type="date"
-            className="p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
+            className="w-full sm:w-auto p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
             value={filters.startDate}
             onChange={e => setFilters({...filters, startDate: e.target.value})}
           />
           <span className="text-gray-400 text-sm">to</span>
           <input 
             type="date"
-            className="p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
+            className="w-full sm:w-auto p-1.5 bg-transparent border-none outline-none text-sm text-gray-600"
             value={filters.endDate}
             onChange={e => setFilters({...filters, endDate: e.target.value})}
           />
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
           <div className="h-6 w-px bg-gray-200"></div>
           <button 
             onClick={handleClearData} 
-            className="ml-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded text-sm font-bold transition-colors"
+            className="w-full sm:w-auto ml-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded text-sm font-bold transition-colors"
           >
             Clear All Data
           </button>
@@ -96,7 +96,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Primary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start">
             <div>
