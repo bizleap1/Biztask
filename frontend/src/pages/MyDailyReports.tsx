@@ -285,7 +285,7 @@ export default function MyDailyReports() {
                         }
                       }}
                       className="w-full px-3 py-2 border rounded-md focus:ring-indigo-500 text-sm"
-                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
                     />
                     <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
                     <input

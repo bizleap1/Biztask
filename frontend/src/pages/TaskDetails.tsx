@@ -348,7 +348,7 @@ export default function TaskDetails() {
                           }
                         }}
                         className="w-full px-3 py-2 border rounded-md focus:ring-purple-500 text-sm"
-                        accept="image/*,application/pdf,video/*"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf,.mp4"
                       />
                       <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
                       <input 
