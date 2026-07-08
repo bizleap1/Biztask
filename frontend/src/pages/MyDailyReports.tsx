@@ -276,16 +276,24 @@ export default function MyDailyReports() {
                       type="file"
                       onChange={e => {
                         const file = e.target.files ? e.target.files[0] : null;
-                        if (file && file.size > 4.5 * 1024 * 1024) {
-                          alert('File is too large! Maximum allowed size is 4.5MB.');
-                          e.target.value = '';
-                          setAttachmentFile(null);
-                        } else {
+                        if (file) {
+                          if (file.size > 4.5 * 1024 * 1024) {
+                            alert('File is too large! Maximum allowed size is 4.5MB.');
+                            e.target.value = '';
+                            setAttachmentFile(null);
+                            return;
+                          }
+                          const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+                          if (!validTypes.includes(file.type)) {
+                            alert('Invalid file type! Please upload an image, PDF, or Word document.');
+                            e.target.value = '';
+                            setAttachmentFile(null);
+                            return;
+                          }
                           setAttachmentFile(file);
                         }
                       }}
                       className="w-full px-3 py-2 border rounded-md focus:ring-indigo-500 text-sm"
-                      accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
                     />
                     <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
                     <input

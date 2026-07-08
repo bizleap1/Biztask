@@ -339,16 +339,24 @@ export default function TaskDetails() {
                         type="file"
                         onChange={e => {
                           const file = e.target.files ? e.target.files[0] : null;
-                          if (file && file.size > 4.5 * 1024 * 1024) {
-                            alert('File is too large! Maximum allowed size is 4.5MB.');
-                            e.target.value = '';
-                            setProofFile(null);
-                          } else {
+                          if (file) {
+                            if (file.size > 4.5 * 1024 * 1024) {
+                              alert('File is too large! Maximum allowed size is 4.5MB.');
+                              e.target.value = '';
+                              setProofFile(null);
+                              return;
+                            }
+                            const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'video/mp4'];
+                            if (!validTypes.includes(file.type)) {
+                              alert('Invalid file type! Please upload an image, PDF, or video.');
+                              e.target.value = '';
+                              setProofFile(null);
+                              return;
+                            }
                             setProofFile(file);
                           }
                         }}
                         className="w-full px-3 py-2 border rounded-md focus:ring-purple-500 text-sm"
-                        accept=".jpg,.jpeg,.png,.webp,.pdf,.mp4"
                       />
                       <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
                       <input 
