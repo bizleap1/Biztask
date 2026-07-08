@@ -15,15 +15,22 @@ const dailyReportRoutes_1 = __importDefault(require("./routes/dailyReportRoutes"
 const dashboardRoutes_1 = __importDefault(require("./routes/dashboardRoutes"));
 const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
 const activityLogRoutes_1 = __importDefault(require("./routes/activityLogRoutes"));
+const uploadRoutes_1 = __importDefault(require("./routes/uploadRoutes"));
+const systemRoutes_1 = __importDefault(require("./routes/systemRoutes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const prisma = new client_1.PrismaClient();
 const PORT = process.env.PORT || 5000;
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use((0, cors_1.default)({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: process.env.NODE_ENV === 'production' ? frontendUrl : true,
     credentials: true
 }));
 app.use(express_1.default.json());
+// Base health route
+app.get('/', (req, res) => {
+    res.send('BizLeap API is running');
+});
 // Basic health check route
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'BizLeap API is running' });
@@ -36,7 +43,12 @@ app.use('/api/daily-reports', dailyReportRoutes_1.default);
 app.use('/api/dashboard', dashboardRoutes_1.default);
 app.use('/api/notifications', notificationRoutes_1.default);
 app.use('/api/activity-logs', activityLogRoutes_1.default);
+app.use('/api/upload', uploadRoutes_1.default);
+app.use('/api/system', systemRoutes_1.default);
 // Other routes will be added later
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
+exports.default = app;

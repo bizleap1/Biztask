@@ -6,6 +6,11 @@ export const userService = {
     return response.data;
   },
   
+  getDepartments: async () => {
+    const response = await api.get('/users/departments');
+    return response.data;
+  },
+  
   getUserById: async (id: number) => {
     const response = await api.get(`/users/${id}`);
     return response.data;

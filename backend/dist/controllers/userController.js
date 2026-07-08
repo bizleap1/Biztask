@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.activateUser = exports.deactivateUser = exports.updateUser = exports.createUser = exports.getUserById = exports.getUsers = void 0;
+exports.deleteUser = exports.activateUser = exports.deactivateUser = exports.updateUser = exports.createUser = exports.getUserById = exports.getUsers = exports.getDepartments = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const client_1 = require("@prisma/client");
 const activityLogUtils_1 = require("../utils/activityLogUtils");
@@ -12,6 +12,18 @@ const prisma = new client_1.PrismaClient();
 // @desc    Get all users
 // @route   GET /api/users
 // @access  Private/SuperAdmin, Manager
+const getDepartments = async (req, res) => {
+    try {
+        const departments = await prisma.department.findMany();
+        res.json(departments);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.getDepartments = getDepartments;
+// @desc    Get all users
 const getUsers = async (req, res) => {
     try {
         let whereClause = {};
@@ -286,6 +298,10 @@ const deleteUser = async (req, res) => {
         await prisma.taskSubmission.deleteMany({ where: { userId } });
         await prisma.taskSubmission.deleteMany({ where: { reviewedById: userId } });
         await prisma.comment.deleteMany({ where: { userId } });
+        await prisma.notification.deleteMany({ where: { userId } });
+        await prisma.activityLog.deleteMany({ where: { userId } });
+        await prisma.dailyReport.deleteMany({ where: { userId } });
+        await prisma.dailyReport.updateMany({ where: { reviewedById: userId }, data: { reviewedById: null } });
         // Update tasks assigned TO this user to be Unassigned
         await prisma.task.updateMany({
             where: { assignedToId: userId },

@@ -6,12 +6,15 @@ import {
   updateUser, 
   deactivateUser, 
   activateUser,
-  deleteUser
+  deleteUser,
+  getDepartments
 } from '../controllers/userController';
 import { protect } from '../middleware/authMiddleware';
 import { authorizeRoles } from '../middleware/roleMiddleware';
 
 const router = express.Router();
+
+router.get('/departments', protect, getDepartments as any);
 
 router.route('/')
   .get(protect, authorizeRoles('SuperAdmin', 'Manager'), getUsers as any)

@@ -4,6 +4,7 @@ import { userService } from '../services/userService';
 
 export default function Employees() {
   const [employees, setEmployees] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -31,20 +32,24 @@ export default function Employees() {
   const loggedInUser = JSON.parse(localStorage.getItem('user') || '{}');
   const isSuperAdmin = loggedInUser.role === 'SuperAdmin';
 
-  const fetchEmployees = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await userService.getUsers();
-      setEmployees(data);
+      const [empData, deptData] = await Promise.all([
+        userService.getUsers(),
+        userService.getDepartments()
+      ]);
+      setEmployees(empData);
+      setDepartments(deptData);
     } catch (error) {
-      console.error('Failed to fetch employees', error);
+      console.error('Failed to fetch data', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEmployees();
+    fetchData();
   }, []);
 
   const handleGeneratePassword = () => {
@@ -63,7 +68,7 @@ export default function Employees() {
       await userService.createUser(formData);
       setSuccessMsg({ email: formData.email, pass: formData.password });
       setShowAddModal(false);
-      fetchEmployees();
+      fetchData();
       // Reset form
       setFormData({ name: '', email: '', password: '', role: '', departmentId: '', designation: '', isActive: true });
     } catch (error: any) {
@@ -77,7 +82,7 @@ export default function Employees() {
     try {
       await userService.updateUser(selectedEmp.id, formData);
       setShowEditModal(false);
-      fetchEmployees();
+      fetchData();
     } catch (error: any) {
       setFormError(error.response?.data?.message || 'Failed to update user');
     }
@@ -90,7 +95,7 @@ export default function Employees() {
       } else {
         await userService.activateUser(emp.id);
       }
-      fetchEmployees();
+      fetchData();
     } catch (error) {
       console.error('Failed to change status', error);
     }
@@ -100,7 +105,7 @@ export default function Employees() {
     if (!window.confirm('Are you sure you want to permanently delete this employee? This will also delete any tasks assigned by them.')) return;
     try {
       await userService.deleteUser(id);
-      fetchEmployees();
+      fetchData();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to delete user');
     }
@@ -312,6 +317,15 @@ export default function Employees() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <select value={formData.departmentId} onChange={e => setFormData({...formData, departmentId: e.target.value})} className="w-full px-3 py-2 border rounded-md">
+                  <option value="">No Department (Auto-assign by role)</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
                 <input type="text" value={formData.designation} onChange={e => setFormData({...formData, designation: e.target.value})} className="w-full px-3 py-2 border rounded-md" placeholder="e.g. Frontend Engineer" />
               </div>
@@ -355,6 +369,15 @@ export default function Employees() {
                   <option value="Viewer">Viewer (HR/Other)</option>
                 </select>
                 {selectedEmp.id === loggedInUser.id && <span className="text-xs text-gray-400">You cannot edit your own role</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <select value={formData.departmentId} onChange={e => setFormData({...formData, departmentId: e.target.value})} className="w-full px-3 py-2 border rounded-md" disabled={selectedEmp.id === loggedInUser.id && !isSuperAdmin}>
+                  <option value="">No Department</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>

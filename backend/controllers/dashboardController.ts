@@ -141,14 +141,31 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
       return { name: dept.name, total, today: todayCount };
     }));
 
-    const employeePerformanceSummary = await Promise.all(employees.map(async (emp) => {
-      const [empTotalTasks, empApprovedTasks, empRejectedTasks, empOverdueTasks, empDailyReports] = await Promise.all([
-        prisma.task.count({ where: { assignedToId: emp.id } }),
-        prisma.task.count({ where: { assignedToId: emp.id, status: 'Approved' } }),
-        prisma.task.count({ where: { assignedToId: emp.id, status: 'Rejected' } }),
-        prisma.task.count({ where: { assignedToId: emp.id, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
-        prisma.dailyReport.count({ where: { userId: emp.id } })
-      ]);
+    const taskGroups = await prisma.task.groupBy({
+      by: ['assignedToId', 'status'],
+      _count: { id: true },
+      where: { assignedToId: { in: employees.map(e => e.id) } }
+    });
+    
+    const overdueGroups = await prisma.task.groupBy({
+      by: ['assignedToId'],
+      where: { assignedToId: { in: employees.map(e => e.id) }, deadline: { lt: new Date() }, status: { not: 'Approved' } },
+      _count: { id: true },
+    });
+
+    const reportGroups = await prisma.dailyReport.groupBy({
+      by: ['userId'],
+      where: { userId: { in: employees.map(e => e.id) } },
+      _count: { id: true },
+    });
+
+    const employeePerformanceSummary = employees.map(emp => {
+      const empTaskGroups = taskGroups.filter(g => g.assignedToId === emp.id);
+      const empTotalTasks = empTaskGroups.reduce((sum, g) => sum + g._count.id, 0);
+      const empApprovedTasks = empTaskGroups.find(g => g.status === 'Approved')?._count.id || 0;
+      const empRejectedTasks = empTaskGroups.find(g => g.status === 'Rejected')?._count.id || 0;
+      const empOverdueTasks = overdueGroups.find(g => g.assignedToId === emp.id)?._count.id || 0;
+      const empDailyReports = reportGroups.find(g => g.userId === emp.id)?._count.id || 0;
 
       return {
         id: emp.id,
@@ -161,7 +178,7 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
         reportsSubmitted: empDailyReports,
         score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empDailyReports)
       };
-    }));
+    });
 
     res.json({
       totalEmployees, activeEmployees, inactiveEmployees,
@@ -252,14 +269,31 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
       date: log.createdAt
     }));
 
-    const teamPerformanceSummary = await Promise.all(employees.map(async (emp) => {
-      const [empTotalTasks, empApprovedTasks, empRejectedTasks, empOverdueTasks, empDailyReports] = await Promise.all([
-        prisma.task.count({ where: { assignedToId: emp.id } }),
-        prisma.task.count({ where: { assignedToId: emp.id, status: 'Approved' } }),
-        prisma.task.count({ where: { assignedToId: emp.id, status: 'Rejected' } }),
-        prisma.task.count({ where: { assignedToId: emp.id, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
-        prisma.dailyReport.count({ where: { userId: emp.id } })
-      ]);
+    const teamTaskGroups = await prisma.task.groupBy({
+      by: ['assignedToId', 'status'],
+      _count: { id: true },
+      where: { assignedToId: { in: employees.map(e => e.id) } }
+    });
+    
+    const teamOverdueGroups = await prisma.task.groupBy({
+      by: ['assignedToId'],
+      where: { assignedToId: { in: employees.map(e => e.id) }, deadline: { lt: new Date() }, status: { not: 'Approved' } },
+      _count: { id: true },
+    });
+
+    const teamReportGroups = await prisma.dailyReport.groupBy({
+      by: ['userId'],
+      where: { userId: { in: employees.map(e => e.id) } },
+      _count: { id: true },
+    });
+
+    const teamPerformanceSummary = employees.map(emp => {
+      const empTaskGroups = teamTaskGroups.filter(g => g.assignedToId === emp.id);
+      const empTotalTasks = empTaskGroups.reduce((sum, g) => sum + g._count.id, 0);
+      const empApprovedTasks = empTaskGroups.find(g => g.status === 'Approved')?._count.id || 0;
+      const empRejectedTasks = empTaskGroups.find(g => g.status === 'Rejected')?._count.id || 0;
+      const empOverdueTasks = teamOverdueGroups.find(g => g.assignedToId === emp.id)?._count.id || 0;
+      const empDailyReports = teamReportGroups.find(g => g.userId === emp.id)?._count.id || 0;
 
       return {
         id: emp.id,
@@ -271,7 +305,7 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
         reportsSubmitted: empDailyReports,
         score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empDailyReports)
       };
-    }));
+    });
 
     const departmentTaskStats = {
       total: totalTeamTasks,

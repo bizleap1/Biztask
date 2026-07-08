@@ -10,6 +10,17 @@ const prisma = new PrismaClient();
 // @desc    Get all users
 // @route   GET /api/users
 // @access  Private/SuperAdmin, Manager
+export const getDepartments = async (req: AuthRequest, res: Response) => {
+  try {
+    const departments = await prisma.department.findMany();
+    res.json(departments);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get all users
 export const getUsers = async (req: AuthRequest, res: Response) => {
   try {
     let whereClause: any = {};
