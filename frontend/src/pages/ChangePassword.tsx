@@ -30,11 +30,11 @@ export default function ChangePassword() {
       await authService.changePassword({ oldPassword, newPassword });
       
       // Update local storage
-      const userStr = localStorage.getItem('user');
+      const userStr = sessionStorage.getItem('user');
       if (userStr) {
         const user = JSON.parse(userStr);
-        user.mustChangePassword = false;
-        localStorage.setItem('user', JSON.stringify(user));
+        user.requirePasswordChange = false;
+        sessionStorage.setItem('user', JSON.stringify(user));
       }
 
       setSuccess('Password changed successfully! Redirecting...');

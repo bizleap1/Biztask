@@ -29,7 +29,7 @@ export default function Employees() {
   const [formError, setFormError] = useState('');
   const [successMsg, setSuccessMsg] = useState<{email: string, pass: string} | null>(null);
 
-  const loggedInUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const loggedInUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const isSuperAdmin = loggedInUser.role === 'SuperAdmin';
 
   const fetchData = async () => {

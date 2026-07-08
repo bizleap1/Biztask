@@ -274,7 +274,16 @@ export default function MyDailyReports() {
                   <div className="space-y-2">
                     <input 
                       type="file"
-                      onChange={e => setAttachmentFile(e.target.files ? e.target.files[0] : null)}
+                      onChange={e => {
+                        const file = e.target.files ? e.target.files[0] : null;
+                        if (file && file.size > 4.5 * 1024 * 1024) {
+                          alert('File is too large! Maximum allowed size is 4.5MB.');
+                          e.target.value = '';
+                          setAttachmentFile(null);
+                        } else {
+                          setAttachmentFile(file);
+                        }
+                      }}
                       className="w-full px-3 py-2 border rounded-md focus:ring-indigo-500 text-sm"
                       accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     />

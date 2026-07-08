@@ -4,7 +4,7 @@ import EmployeeDashboard from './dashboards/EmployeeDashboard';
 import HrDashboard from './dashboards/HrDashboard';
 
 export default function Dashboard() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
 
   const renderDashboard = () => {
     switch (user.role) {

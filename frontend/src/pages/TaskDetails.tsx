@@ -9,7 +9,7 @@ export default function TaskDetails() {
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
 
   // Submit Modal
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -337,7 +337,16 @@ export default function TaskDetails() {
                     <div className="space-y-2">
                       <input 
                         type="file"
-                        onChange={e => setProofFile(e.target.files ? e.target.files[0] : null)}
+                        onChange={e => {
+                          const file = e.target.files ? e.target.files[0] : null;
+                          if (file && file.size > 4.5 * 1024 * 1024) {
+                            alert('File is too large! Maximum allowed size is 4.5MB.');
+                            e.target.value = '';
+                            setProofFile(null);
+                          } else {
+                            setProofFile(file);
+                          }
+                        }}
                         className="w-full px-3 py-2 border rounded-md focus:ring-purple-500 text-sm"
                         accept="image/*,application/pdf,video/*"
                       />

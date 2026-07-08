@@ -17,8 +17,8 @@ export default function Login() {
         password: loginPass
       });
       
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify({
+      sessionStorage.setItem('token', data.token);
+      sessionStorage.setItem('user', JSON.stringify({
         id: data.id,
         name: data.name,
         email: data.email,
