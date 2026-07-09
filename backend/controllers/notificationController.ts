@@ -1,9 +1,8 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { createNotification } from '../utils/notificationUtils';
 
-const prisma = new PrismaClient();
+import prisma from '../prismaClient';
 
 // @desc    Get notifications for logged-in user
 // @route   GET /api/notifications

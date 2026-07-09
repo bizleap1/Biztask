@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/authMiddleware';
 
-const prisma = new PrismaClient();
+import prisma from '../prismaClient';
 
 // Helper to calculate performance score
 const calculatePerformanceScore = (approved: number, overdue: number, rejected: number, dailyReports: number) => {

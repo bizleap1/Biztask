@@ -1,10 +1,9 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { createActivityLog } from '../utils/activityLogUtils';
 import { createNotification } from '../utils/notificationUtils';
 import { AuthRequest } from '../middleware/authMiddleware';
 
-const prisma = new PrismaClient();
+import prisma from '../prismaClient';
 
 // @desc    Submit a daily report
 // @route   POST /api/daily-reports

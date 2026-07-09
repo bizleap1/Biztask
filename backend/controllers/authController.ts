@@ -2,10 +2,9 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import { createActivityLog } from '../utils/activityLogUtils';
 
-const prisma = new PrismaClient();
+import prisma from '../prismaClient';
 
 const generateToken = (id: number) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {

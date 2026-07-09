@@ -1,11 +1,10 @@
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
 import { createActivityLog } from '../utils/activityLogUtils';
 import { createNotification } from '../utils/notificationUtils';
 import { AuthRequest } from '../middleware/authMiddleware';
 
-const prisma = new PrismaClient();
+import prisma from '../prismaClient';
 
 // @desc    Get all users
 // @route   GET /api/users

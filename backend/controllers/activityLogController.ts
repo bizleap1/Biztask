@@ -1,8 +1,7 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/authMiddleware';
 
-const prisma = new PrismaClient();
+import prisma from '../prismaClient';
 
 // @desc    Get activity logs (Admin/Manager)
 // @route   GET /api/activity-logs
