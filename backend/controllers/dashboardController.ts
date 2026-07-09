@@ -124,22 +124,41 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
       date: log.createdAt
     }));
 
-    const departmentWiseTaskStats = await Promise.all(departments.map(async (dept) => {
-      const [total, approved, overdue] = await Promise.all([
-        prisma.task.count({ where: { departmentId: dept.id } }),
-        prisma.task.count({ where: { departmentId: dept.id, status: 'Approved' } }),
-        prisma.task.count({ where: { departmentId: dept.id, deadline: { lt: new Date() }, status: { not: 'Approved' } } })
-      ]);
-      return { name: dept.name, total, approved, overdue };
-    }));
+    const departmentWiseTaskStatsRaw = await prisma.task.groupBy({
+      by: ['departmentId', 'status'],
+      _count: { id: true },
+    });
+    
+    const departmentWiseOverdueRaw = await prisma.task.groupBy({
+      by: ['departmentId'],
+      where: { deadline: { lt: new Date() }, status: { not: 'Approved' } },
+      _count: { id: true },
+    });
 
-    const departmentWiseReportStats = await Promise.all(departments.map(async (dept) => {
-      const [total, todayCount] = await Promise.all([
-        prisma.dailyReport.count({ where: { departmentId: dept.id } }),
-        prisma.dailyReport.count({ where: { departmentId: dept.id, reportDate: { gte: today, lt: tomorrow } } })
-      ]);
+    const departmentWiseTaskStats = departments.map(dept => {
+      const stats = departmentWiseTaskStatsRaw.filter(g => g.departmentId === dept.id);
+      const overdueStats = departmentWiseOverdueRaw.find(g => g.departmentId === dept.id);
+      const total = stats.reduce((sum, g) => sum + g._count.id, 0);
+      const approved = stats.find(g => g.status === 'Approved')?._count.id || 0;
+      const overdue = overdueStats?._count.id || 0;
+      return { name: dept.name, total, approved, overdue };
+    });
+
+    const departmentWiseReportStatsRaw = await prisma.dailyReport.groupBy({
+      by: ['departmentId'],
+      _count: { id: true }
+    });
+    const departmentWiseReportTodayRaw = await prisma.dailyReport.groupBy({
+      by: ['departmentId'],
+      where: { reportDate: { gte: today, lt: tomorrow } },
+      _count: { id: true }
+    });
+
+    const departmentWiseReportStats = departments.map(dept => {
+      const total = departmentWiseReportStatsRaw.find(g => g.departmentId === dept.id)?._count.id || 0;
+      const todayCount = departmentWiseReportTodayRaw.find(g => g.departmentId === dept.id)?._count.id || 0;
       return { name: dept.name, total, today: todayCount };
-    }));
+    });
 
     const taskGroups = await prisma.task.groupBy({
       by: ['assignedToId', 'status'],
@@ -405,10 +424,15 @@ export const getHrDashboard = async (req: AuthRequest, res: Response) => {
 
     const inactiveEmployees = totalEmployees - activeEmployees;
 
-    const departmentWiseEmployees = await Promise.all(departments.map(async (dept) => ({
+    const departmentUserCountsRaw = await prisma.user.groupBy({
+      by: ['departmentId'],
+      _count: { id: true }
+    });
+
+    const departmentWiseEmployees = departments.map(dept => ({
       name: dept.name,
-      count: await prisma.user.count({ where: { departmentId: dept.id } })
-    })));
+      count: departmentUserCountsRaw.find(g => g.departmentId === dept.id)?._count.id || 0
+    }));
 
     const dailyReportCompliance = expectedSubmitters > 0 ? ((todayReports / expectedSubmitters) * 100).toFixed(1) : 0;
     const taskCompletionOverview = totalTasks > 0 ? ((approvedTasks / totalTasks) * 100).toFixed(1) : 0;

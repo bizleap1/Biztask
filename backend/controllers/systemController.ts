@@ -41,3 +41,44 @@ export const clearAllData = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Failed to clear system data', error: error instanceof Error ? error.message : 'Unknown error' });
   }
 };
+
+export const flushOldData = async (req: Request, res: Response) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [deletedLogs, deletedNotifications] = await prisma.$transaction([
+      prisma.activityLog.deleteMany({
+        where: { createdAt: { lt: thirtyDaysAgo } }
+      }),
+      prisma.notification.deleteMany({
+        where: { createdAt: { lt: thirtyDaysAgo }, isRead: true }
+      })
+    ]);
+
+    // Log the flush action
+    // @ts-ignore
+    if (req.user && req.user.id) {
+      await prisma.activityLog.create({
+        data: {
+          // @ts-ignore
+          userId: req.user.id,
+          action: 'SYSTEM_DATA_FLUSHED',
+          description: `SuperAdmin flushed ${deletedLogs.count} old activity logs and ${deletedNotifications.count} read notifications.`,
+          ipAddress: req.ip || null,
+        }
+      });
+    }
+
+    res.status(200).json({ 
+      message: 'Old system data flushed successfully.',
+      details: {
+        logsDeleted: deletedLogs.count,
+        notificationsDeleted: deletedNotifications.count
+      }
+    });
+  } catch (error) {
+    console.error('Error flushing old data:', error);
+    res.status(500).json({ message: 'Failed to flush old data', error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+};
