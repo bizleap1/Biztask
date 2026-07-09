@@ -109,7 +109,7 @@ export default function Tasks() {
     return matchStatus && matchDept && matchSearch;
   });
 
-  const availableCategories = formData.departmentId === '1' ? DEV_CATEGORIES : formData.departmentId === '2' ? MEDIA_CATEGORIES : [];
+  const availableCategories = formData.departmentId === '2' ? DEV_CATEGORIES : formData.departmentId === '3' ? MEDIA_CATEGORIES : [];
   const availableEmployees = employees.filter(emp => emp.departmentId === Number(formData.departmentId) && emp.isActive);
 
   return (
@@ -173,8 +173,8 @@ export default function Tasks() {
         </select>
         <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-gray-300">
           <option value="">All Departments</option>
-          <option value="1">Development</option>
-          <option value="2">Media</option>
+          <option value="2">Development</option>
+          <option value="3">Media</option>
         </select>
       </div>
 
@@ -275,8 +275,8 @@ export default function Tasks() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
                     <select required value={formData.departmentId} onChange={e => setFormData({...formData, departmentId: e.target.value, category: '', assignedToId: ''})} className="w-full px-3 py-2 border rounded-md">
                       <option value="">Select Department...</option>
-                      <option value="1">Development</option>
-                      <option value="2">Media</option>
+                      <option value="2">Development</option>
+                      <option value="3">Media</option>
                     </select>
                   </div>
                   <div>
