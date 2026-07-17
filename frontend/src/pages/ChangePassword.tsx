@@ -33,7 +33,7 @@ export default function ChangePassword() {
       const userStr = sessionStorage.getItem('user');
       if (userStr) {
         const user = JSON.parse(userStr);
-        user.requirePasswordChange = false;
+        user.mustChangePassword = false;
         sessionStorage.setItem('user', JSON.stringify(user));
       }
 
