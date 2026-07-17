@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Trash2, FileText, Edit } from 'lucide-react';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
@@ -19,6 +19,7 @@ const MEDIA_CATEGORIES = [
 
 export default function Tasks() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const loggedInUserStr = sessionStorage.getItem('user');
   const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
   const isSuperAdmin = loggedInUser?.role === 'SuperAdmin';
@@ -27,13 +28,15 @@ export default function Tasks() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [deptFilter, setDeptFilter] = useState('');
   const [search, setSearch] = useState('');
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
+  const [expandedDesc, setExpandedDesc] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -92,6 +95,23 @@ export default function Tasks() {
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create task');
     }
+  };
+
+  const updateTaskInline = async (id: number, updates: any) => {
+    try {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      await taskService.updateTask(id, { ...task, ...updates });
+      fetchTasks();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to update task');
+    }
+  };
+
+  const handleSaveDescription = async (id: number) => {
+    await updateTaskInline(id, { description: expandedDesc });
+    setExpandedTaskId(null);
   };
 
   const handleDelete = async (id: number) => {
@@ -217,9 +237,21 @@ export default function Tasks() {
                 <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No tasks found.</td></tr>
               ) : (
                 filteredTasks.map((t) => (
+                  <React.Fragment key={t.id}>
                   <tr 
                     key={t.id} 
-                    onClick={() => navigate(`/tasks/${t.id}`)} 
+                    onClick={() => {
+                      if (isSuperAdmin) {
+                        if (expandedTaskId === t.id) {
+                          setExpandedTaskId(null);
+                        } else {
+                          setExpandedTaskId(t.id);
+                          setExpandedDesc(t.description || '');
+                        }
+                      } else {
+                        navigate(`/tasks/${t.id}`);
+                      }
+                    }} 
                     className="hover:bg-gray-50 transition-colors cursor-pointer group border-b border-gray-100"
                   >
                     <td className="px-5 py-3 border-r border-gray-100">
@@ -232,15 +264,29 @@ export default function Tasks() {
                       </div>
                     </td>
                     <td className="px-5 py-3 border-r border-gray-100">
-                      {t.assignedTo ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-bold">
-                            {t.assignedTo.name.charAt(0)}
-                          </div>
-                          <span className="text-gray-700">{t.assignedTo.name}</span>
-                        </div>
+                      {isSuperAdmin ? (
+                        <select 
+                          value={t.assignedToId || ''} 
+                          onClick={(e) => e.stopPropagation()} 
+                          onChange={(e) => updateTaskInline(t.id, { assignedToId: e.target.value ? Number(e.target.value) : null })} 
+                          className="w-full text-sm bg-transparent cursor-pointer border-none outline-none focus:ring-0 text-gray-700 p-0"
+                        >
+                          <option value="">Unassigned</option>
+                          {employees.filter(emp => emp.departmentId === t.departmentId && emp.isActive).map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                          ))}
+                        </select>
                       ) : (
-                        <span className="text-gray-400 italic">Unassigned</span>
+                        t.assignedTo ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-bold">
+                              {t.assignedTo.name.charAt(0)}
+                            </div>
+                            <span className="text-gray-700">{t.assignedTo.name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">Unassigned</span>
+                        )
                       )}
                     </td>
                     <td className="px-5 py-3 border-r border-gray-100">
@@ -257,25 +303,63 @@ export default function Tasks() {
                     </td>
                     <td className="px-5 py-3 border-r border-gray-100">
                       <div className="flex items-center justify-between">
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${ 
-                          t.priority === 'Urgent' ? 'bg-red-50 text-red-700' : 
-                          t.priority === 'High' ? 'bg-orange-50 text-orange-700' : 
-                          'bg-gray-100 text-gray-700' 
-                        }`}>
-                          {t.priority}
-                        </span>
+                        {isSuperAdmin ? (
+                          <select 
+                            value={t.priority} 
+                            onClick={(e) => e.stopPropagation()} 
+                            onChange={(e) => updateTaskInline(t.id, { priority: e.target.value })} 
+                            className={`text-[11px] font-medium px-2 py-0.5 rounded cursor-pointer border-none outline-none appearance-none ${ 
+                              t.priority === 'Urgent' ? 'bg-red-50 text-red-700' : 
+                              t.priority === 'High' ? 'bg-orange-50 text-orange-700' : 
+                              'bg-gray-100 text-gray-700' 
+                            }`}
+                          >
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Urgent">Urgent</option>
+                          </select>
+                        ) : (
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${ 
+                            t.priority === 'Urgent' ? 'bg-red-50 text-red-700' : 
+                            t.priority === 'High' ? 'bg-orange-50 text-orange-700' : 
+                            'bg-gray-100 text-gray-700' 
+                          }`}>
+                            {t.priority}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400">{new Date(t.deadline).toLocaleDateString()}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3 border-r border-gray-100">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${ 
-                        t.status === 'Approved' ? 'bg-green-50 text-green-700' : 
-                        t.status === 'Submitted' ? 'bg-purple-50 text-purple-700' : 
-                        t.status === 'Rejected' ? 'bg-red-50 text-red-700' : 
-                        t.status === 'In Progress' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-700' 
-                      }`}>
-                        {t.status}
-                      </span>
+                      {isSuperAdmin ? (
+                        <select 
+                          value={t.status} 
+                          onClick={(e) => e.stopPropagation()} 
+                          onChange={(e) => updateTaskInline(t.id, { status: e.target.value })} 
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium cursor-pointer border-none outline-none appearance-none ${ 
+                            t.status === 'Approved' ? 'bg-green-50 text-green-700' : 
+                            t.status === 'Submitted' ? 'bg-purple-50 text-purple-700' : 
+                            t.status === 'Rejected' ? 'bg-red-50 text-red-700' : 
+                            t.status === 'In Progress' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-700' 
+                          }`}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Submitted">Submitted</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                      ) : (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${ 
+                          t.status === 'Approved' ? 'bg-green-50 text-green-700' : 
+                          t.status === 'Submitted' ? 'bg-purple-50 text-purple-700' : 
+                          t.status === 'Rejected' ? 'bg-red-50 text-red-700' : 
+                          t.status === 'In Progress' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-700' 
+                        }`}>
+                          {t.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">
                       {isSuperAdmin && (
@@ -312,6 +396,30 @@ export default function Tasks() {
                       </button>
                     </td>
                   </tr>
+                  {expandedTaskId === t.id && (
+                    <tr>
+                      <td colSpan={6} className="bg-indigo-50/50 p-6 border-b border-gray-100">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <h4 className="text-sm font-bold text-gray-900">Task Details & Description (Client Info, Links, etc.)</h4>
+                            <button 
+                              onClick={() => handleSaveDescription(t.id)}
+                              className="bg-[var(--color-brand-black)] hover:bg-[var(--color-brand-matte)] text-white text-xs font-medium py-1.5 px-4 rounded-md transition-colors"
+                            >
+                              Save Details
+                            </button>
+                          </div>
+                          <textarea 
+                            value={expandedDesc} 
+                            onChange={(e) => setExpandedDesc(e.target.value)} 
+                            className="w-full h-32 p-3 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-black)] focus:border-transparent"
+                            placeholder="Enter all task details, client information, and drive links here..."
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))
               )}
             </tbody>

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { dashboardService } from '../../services/dashboardService';
 import { clearSystemData } from '../../services/api';
 import { Users, FileText, CheckCircle, AlertTriangle, Filter, LayoutDashboard, Activity } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ startDate: '', endDate: '', department: '' });
@@ -112,7 +114,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-green-600 mt-3 font-medium">{data.activeEmployees} Active</p>
         </div>
         
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div onClick={() => navigate('/tasks')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Total Tasks</p>
@@ -123,7 +125,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-gray-500 mt-3 font-medium">{data.approvedTasks} Approved</p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div onClick={() => navigate('/tasks?status=Overdue')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Overdue Tasks</p>
