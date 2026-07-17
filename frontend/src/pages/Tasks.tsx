@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Trash2, FileText, Edit } from 'lucide-react';
 import { taskService } from '../services/taskService';
@@ -237,7 +237,7 @@ export default function Tasks() {
                 <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No tasks found.</td></tr>
               ) : (
                 filteredTasks.map((t) => (
-                  <React.Fragment key={t.id}>
+                  <Fragment key={t.id}>
                   <tr 
                     key={t.id} 
                     onClick={() => {
@@ -419,7 +419,7 @@ export default function Tasks() {
                       </td>
                     </tr>
                   )}
-                  </React.Fragment>
+                  </Fragment>
                 ))
               )}
             </tbody>
