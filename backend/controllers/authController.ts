@@ -143,6 +143,10 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    if (user.canResetPassword) {
+      return res.json({ alreadyGranted: true, message: 'You already have permission to reset your password. Please set your new password.' });
+    }
+
     await prisma.user.update({
       where: { email },
       data: { resetPasswordRequested: true }

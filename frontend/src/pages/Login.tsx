@@ -21,8 +21,13 @@ export default function Login() {
     setForgotLoading(true);
     try {
       if (forgotMode === 'request') {
-        await api.post('/auth/request-reset', { email: forgotEmail });
-        setForgotMsg('Success! Password reset request sent to admin.');
+        const response = await api.post('/auth/request-reset', { email: forgotEmail });
+        if (response.data.alreadyGranted) {
+          setForgotMode('reset');
+          setForgotMsg('You already have permission. Please set your new password below.');
+        } else {
+          setForgotMsg('Success! Password reset request sent to admin.');
+        }
       } else {
         if (!forgotNewPassword) {
           setForgotMsg('Please enter a new password.');

@@ -70,6 +70,8 @@ export default function NotificationBell() {
       navigate('/tasks');
     } else if (notif.entityType === 'DailyReport') {
       navigate('/daily-reports');
+    } else if (notif.entityType === 'User') {
+      navigate('/employees');
     } else {
       navigate('/notifications');
     }
