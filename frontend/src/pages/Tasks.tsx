@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Search, Eye, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Trash2, FileText } from 'lucide-react';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 
@@ -18,6 +18,7 @@ const MEDIA_CATEGORIES = [
 ];
 
 export default function Tasks() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,68 +180,93 @@ export default function Tasks() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Title & Category</th>
-                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Assigned To</th>
-                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Priority & Deadline</th>
-                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Status</th>
-                <th className="px-6 py-4 text-sm font-semibold text-gray-600 text-right">Actions</th>
+              <tr className="border-b border-gray-200 text-gray-500 bg-white">
+                <th className="px-5 py-3 font-medium border-r border-gray-100 w-1/3">Task</th>
+                <th className="px-5 py-3 font-medium border-r border-gray-100">Assignee</th>
+                <th className="px-5 py-3 font-medium border-r border-gray-100">Assigned By</th>
+                <th className="px-5 py-3 font-medium border-r border-gray-100">Priority</th>
+                <th className="px-5 py-3 font-medium border-r border-gray-100">Status</th>
+                <th className="px-5 py-3 font-medium text-right w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading tasks...</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading tasks...</td></tr>
               ) : filteredTasks.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No tasks found.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No tasks found.</td></tr>
               ) : (
                 filteredTasks.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{t.title}</p>
-                      <p className="text-xs text-gray-500">{t.department?.name} • {t.category}</p>
+                  <tr 
+                    key={t.id} 
+                    onClick={() => navigate(`/tasks/${t.id}`)} 
+                    className="hover:bg-gray-50 transition-colors cursor-pointer group border-b border-gray-100"
+                  >
+                    <td className="px-5 py-3 border-r border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <FileText size={16} className="text-gray-400" />
+                        <div>
+                          <p className="font-medium text-gray-900 group-hover:text-indigo-600 transition-colors">{t.title}</p>
+                          <p className="text-xs text-gray-500">{t.department?.name} • {t.category}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3 border-r border-gray-100">
                       {t.assignedTo ? (
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gray-100 text-[var(--color-brand-black)] flex items-center justify-center text-xs font-bold">
+                          <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-bold">
                             {t.assignedTo.name.charAt(0)}
                           </div>
-                          <span className="text-sm font-medium">{t.assignedTo.name}</span>
+                          <span className="text-gray-700">{t.assignedTo.name}</span>
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400 italic">Unassigned</span>
+                        <span className="text-gray-400 italic">Unassigned</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-xs font-medium px-2 py-1 rounded-md ${
-                        t.priority === 'Urgent' ? 'badge-danger' :
-                        t.priority === 'High' ? 'bg-orange-100 text-orange-700' :
-                        t.priority === 'Medium' ? 'badge-neutral' : 'badge-neutral'
-                      }`}>
-                        {t.priority}
-                      </span>
-                      <p className="text-xs text-gray-500 mt-1">{new Date(t.deadline).toLocaleDateString()}</p>
+                    <td className="px-5 py-3 border-r border-gray-100">
+                      {t.assignedBy ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-[10px] font-bold">
+                            {t.assignedBy.name.charAt(0)}
+                          </div>
+                          <span className="text-gray-600">{t.assignedBy.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">System</span>
+                      )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        t.status === 'Approved' ? 'badge-success' :
-                        t.status === 'Submitted' ? 'bg-purple-100 text-purple-700' :
-                        t.status === 'Rejected' ? 'badge-danger' :
-                        t.status === 'In Progress' ? 'badge-neutral' : 'badge-warning'
+                    <td className="px-5 py-3 border-r border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${ 
+                          t.priority === 'Urgent' ? 'bg-red-50 text-red-700' : 
+                          t.priority === 'High' ? 'bg-orange-50 text-orange-700' : 
+                          'bg-gray-100 text-gray-700' 
+                        }`}>
+                          {t.priority}
+                        </span>
+                        <span className="text-xs text-gray-400">{new Date(t.deadline).toLocaleDateString()}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 border-r border-gray-100">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${ 
+                        t.status === 'Approved' ? 'bg-green-50 text-green-700' : 
+                        t.status === 'Submitted' ? 'bg-purple-50 text-purple-700' : 
+                        t.status === 'Rejected' ? 'bg-red-50 text-red-700' : 
+                        t.status === 'In Progress' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-700' 
                       }`}>
                         {t.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <Link to={`/tasks/${t.id}`} className="inline-block text-gray-400 hover:text-[var(--color-brand-black)] transition-colors p-1" title="View">
-                        <Eye size={18} />
-                      </Link>
-                      <button onClick={() => handleDelete(t.id)} className="text-gray-400 hover:text-red-600 transition-colors p-1" title="Delete">
-                        <Trash2 size={18} />
+                    <td className="px-5 py-3 text-right">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
+                        className="text-gray-400 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </td>
                   </tr>

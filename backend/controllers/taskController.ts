@@ -112,6 +112,7 @@ export const getTasks = async (req: AuthRequest, res: Response) => {
       where: whereClause,
       include: {
         assignedTo: { select: { id: true, name: true, role: true } },
+        assignedBy: { select: { id: true, name: true, role: true } },
         department: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' }
@@ -133,6 +134,7 @@ export const getMyTasks = async (req: AuthRequest, res: Response) => {
       where: { assignedToId: req.user!.id },
       include: {
         department: { select: { id: true, name: true } },
+        assignedBy: { select: { id: true, name: true, role: true } },
       },
       orderBy: { createdAt: 'desc' }
     });
