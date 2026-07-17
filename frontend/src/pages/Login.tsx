@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import api from '../services/api';
@@ -10,6 +11,8 @@ export default function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
   const [forgotMode, setForgotMode] = useState<'request'|'reset'>('request');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotNewPassword, setForgotNewPassword] = useState('');
@@ -136,17 +139,24 @@ export default function Login() {
               <label htmlFor="password" className="block text-sm font-medium text-[var(--color-text-main)] mb-1">
                 Password
               </label>
-              <div>
+              <div className="relative">
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="input-field"
                   placeholder="Enter your password"
                 />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -206,13 +216,22 @@ export default function Login() {
               {forgotMode === 'reset' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                  <input 
-                    type="password" 
-                    value={forgotNewPassword}
-                    onChange={e => setForgotNewPassword(e.target.value)}
+                  <div className="relative">
+                    <input 
+                      type={showForgotNewPassword ? 'text' : 'password'} 
+                      value={forgotNewPassword}
+                      onChange={e => setForgotNewPassword(e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter new password"
-                  />
+                      placeholder="Enter new password"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowForgotNewPassword(!showForgotNewPassword)} 
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showForgotNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
               )}
 
