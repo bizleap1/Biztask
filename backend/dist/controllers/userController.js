@@ -25,10 +25,9 @@ exports.getDepartments = getDepartments;
 // @desc    Get all users
 const getUsers = async (req, res) => {
     try {
-        let whereClause = {};
-        if (req.user?.role !== 'SuperAdmin') {
-            whereClause.role = { not: 'SuperAdmin' };
-        }
+        let whereClause = {
+            role: { not: 'SuperAdmin' }
+        };
         const users = await prismaClient_1.default.user.findMany({
             where: whereClause,
             select: {
