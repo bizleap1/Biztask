@@ -264,6 +264,12 @@ export default function DailyReports() {
                     {selectedReport.status}
                   </span>
                 </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium uppercase tracking-wider">Monthly Submission Rate</p>
+                  <span className="inline-block px-2 py-1 mt-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                    {selectedReport.user?.reportSubmissionRate !== undefined ? `${selectedReport.user.reportSubmissionRate}%` : 'N/A'}
+                  </span>
+                </div>
               </div>
 
               {selectedReport.managerFeedback && (

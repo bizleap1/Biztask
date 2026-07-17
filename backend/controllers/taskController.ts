@@ -56,6 +56,23 @@ export const createTask = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+      const adminsAndManagers = await prisma.user.findMany({
+        where: { role: { in: ['SuperAdmin', 'Manager'] } },
+        select: { id: true }
+      });
+      for (const admin of adminsAndManagers) {
+        await createNotification({
+          userId: admin.id,
+          title: 'Employee Assigned Task',
+          message: `${req.user!.name} assigned a task: ${task.title}`,
+          type: 'task_assigned',
+          entityType: 'Task',
+          entityId: task.id
+        });
+      }
+    }
+
     res.status(201).json(task);
   } catch (error) {
     console.error('Create Task Error:', error);
@@ -78,8 +95,8 @@ export const getTasks = async (req: AuthRequest, res: Response) => {
       // Manager sees all tasks since there's only one manager
       whereClause = {};
     } else {
-      // Employee sees only their tasks
-      whereClause = { assignedToId: id };
+      // Employee sees their assigned tasks and tasks they created
+      whereClause = { OR: [{ assignedToId: id }, { assignedById: id }] };
     }
 
     // Apply query filters
@@ -174,8 +191,8 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
     const existingTask = await prisma.task.findUnique({ where: { id: taskId } });
     if (!existingTask) return res.status(404).json({ message: 'Task not found' });
 
-    // Block if approved (unless SuperAdmin)
-    if (existingTask.status === 'Approved' && req.user!.role !== 'SuperAdmin') {
+    // Block if approved (unless SuperAdmin or Manager)
+    if (existingTask.status === 'Approved' && req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
       return res.status(403).json({ message: 'Cannot edit an approved task' });
     }
 

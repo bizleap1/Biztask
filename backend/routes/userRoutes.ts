@@ -7,6 +7,7 @@ import {
   deactivateUser, 
   activateUser,
   deleteUser,
+  grantPasswordReset,
   getDepartments
 } from '../controllers/userController';
 import { protect } from '../middleware/authMiddleware';
@@ -17,7 +18,7 @@ const router = express.Router();
 router.get('/departments', protect, getDepartments as any);
 
 router.route('/')
-  .get(protect, authorizeRoles('SuperAdmin', 'Manager'), getUsers as any)
+  .get(protect, authorizeRoles('SuperAdmin', 'Manager', 'DevEmployee', 'MediaEmployee'), getUsers as any)
   .post(protect, authorizeRoles('SuperAdmin', 'Manager'), createUser as any);
 
 router.route('/:id')
@@ -27,5 +28,6 @@ router.route('/:id')
 
 router.patch('/:id/deactivate', protect, authorizeRoles('SuperAdmin'), deactivateUser as any);
 router.patch('/:id/activate', protect, authorizeRoles('SuperAdmin'), activateUser as any);
+router.patch('/:id/grant-reset', protect, authorizeRoles('SuperAdmin'), grantPasswordReset as any);
 
 export default router;

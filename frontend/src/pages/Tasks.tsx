@@ -7,14 +7,14 @@ import { userService } from '../services/userService';
 const DEV_CATEGORIES = [
   'Website Development', 'Frontend Change', 'Backend API', 'Bug Fix',
   'UI/UX Update', 'Deployment', 'Database Work', 'Client Website Update',
-  'Performance Optimization', 'Technical SEO Fix', 'GitHub/Code Review'
+  'Performance Optimization', 'Technical SEO Fix', 'GitHub/Code Review', 'Other'
 ];
 
 const MEDIA_CATEGORIES = [
   'Instagram Post', 'Instagram Reel', 'LinkedIn Post', 'Video Editing',
   'Content Calendar', 'Caption Writing', 'SEO On-page', 'SEO Off-page',
   'Keyword Research', 'Meta Ads Campaign', 'Campaign Report', 'Creative Design',
-  'Client Social Media Report'
+  'Client Social Media Report', 'Other'
 ];
 
 export default function Tasks() {

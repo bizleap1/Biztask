@@ -58,7 +58,7 @@ export default function Layout() {
           {(user.role === 'SuperAdmin' || user.role === 'Manager') && (
             <>
               <Link to="/tasks" className={getLinkClass('/tasks')} onClick={() => setSidebarOpen(false)}>
-                <CheckSquare size={18} /> Tasks
+                <CheckSquare size={18} /> Tasks Overview
               </Link>
               <Link to="/review-submissions" className={getLinkClass('/review-submissions')} onClick={() => setSidebarOpen(false)}>
                 <CheckSquare size={18} /> Review Submissions
@@ -73,14 +73,14 @@ export default function Layout() {
               <Link to="/my-tasks" className={getLinkClass('/my-tasks')} onClick={() => setSidebarOpen(false)}>
                 <CheckSquare size={18} /> My Tasks
               </Link>
+              <Link to="/assign-task" className={getLinkClass('/assign-task')} onClick={() => setSidebarOpen(false)}>
+                <CheckSquare size={18} /> Assign Task
+              </Link>
               <Link to="/my-daily-reports" className={getLinkClass('/my-daily-reports')} onClick={() => setSidebarOpen(false)}>
                 <FileText size={18} /> My Daily Reports
               </Link>
             </>
           )}
-          <Link to="/reports" className={getLinkClass('/reports')} onClick={() => setSidebarOpen(false)}>
-            <FileText size={18} /> Reports
-          </Link>
           {(user.role === 'SuperAdmin' || user.role === 'Manager') && (
             <Link to="/employees" className={getLinkClass('/employees')} onClick={() => setSidebarOpen(false)}>
               <Users size={18} /> Employees

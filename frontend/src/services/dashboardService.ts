@@ -6,6 +6,7 @@ export const dashboardService = {
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
     if (filters.department) params.append('department', filters.department);
+    params.append('_t', Date.now().toString());
     
     const response = await api.get(`/dashboard/admin?${params.toString()}`);
     return response.data;
@@ -15,6 +16,7 @@ export const dashboardService = {
     const params = new URLSearchParams();
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    params.append('_t', Date.now().toString());
     
     const response = await api.get(`/dashboard/manager?${params.toString()}`);
     return response.data;
@@ -24,13 +26,14 @@ export const dashboardService = {
     const params = new URLSearchParams();
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    params.append('_t', Date.now().toString());
     
     const response = await api.get(`/dashboard/employee?${params.toString()}`);
     return response.data;
   },
 
   getHrDashboard: async () => {
-    const response = await api.get('/dashboard/hr');
+    const response = await api.get(`/dashboard/hr?_t=${Date.now()}`);
     return response.data;
   }
 };

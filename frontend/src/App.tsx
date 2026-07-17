@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees.tsx';
 import ChangePassword from './pages/ChangePassword';
 import Tasks from './pages/Tasks';
+import AssignTask from './pages/AssignTask';
 import MyTasks from './pages/MyTasks';
 import TaskDetails from './pages/TaskDetails';
 import ReviewSubmissions from './pages/ReviewSubmissions';
@@ -40,6 +41,11 @@ function App() {
             <Tasks />
           </AuthGuard>
         } />
+        <Route path="assign-task" element={
+          <AuthGuard allowedRoles={['DevEmployee', 'MediaEmployee']}>
+            <AssignTask />
+          </AuthGuard>
+        } />
         <Route path="my-tasks" element={
           <AuthGuard allowedRoles={['DevEmployee', 'MediaEmployee']}>
             <MyTasks />
@@ -67,7 +73,7 @@ function App() {
             <ActivityLogs />
           </AuthGuard>
         } />
-        <Route path="reports" element={<div className="p-4 bg-white rounded-xl shadow-pepper">Reports Feature Coming Soon</div>} />
+
         <Route path="settings" element={<div className="p-4 bg-white rounded-xl shadow-pepper">Settings Feature Coming Soon</div>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

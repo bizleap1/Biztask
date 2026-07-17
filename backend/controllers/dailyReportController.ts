@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { createActivityLog } from '../utils/activityLogUtils';
 import { createNotification } from '../utils/notificationUtils';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { calculateMonthlyReportRate } from '../utils/reportUtils';
 
 import prisma from '../prismaClient';
 
@@ -127,7 +128,13 @@ export const getAllReports = async (req: AuthRequest, res: Response) => {
       orderBy: { reportDate: 'desc' }
     });
 
-    res.json(reports);
+    // Fetch live monthly submission rate for each report's user
+    const reportsWithRates = await Promise.all(reports.map(async (report) => {
+      const rate = await calculateMonthlyReportRate(report.userId);
+      return { ...report, user: { ...report.user, reportSubmissionRate: rate } };
+    }));
+
+    res.json(reportsWithRates);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

@@ -8,20 +8,23 @@ export default function AdminDashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ startDate: '', endDate: '', department: '' });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
   }, [filters]);
 
-  const fetchData = async () => {
+  const fetchData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!data || !isRefresh) setLoading(true);
+      else setRefreshing(true);
       const res = await dashboardService.getAdminDashboard(filters);
       setData(res);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -30,7 +33,7 @@ export default function AdminDashboard() {
       try {
         await clearSystemData();
         alert("System data cleared successfully.");
-        fetchData();
+        fetchData(false);
       } catch (error) {
         console.error("Failed to clear data", error);
         alert("Error clearing data. Please try again.");
@@ -82,8 +85,9 @@ export default function AdminDashboard() {
             value={filters.endDate}
             onChange={e => setFilters({...filters, endDate: e.target.value})}
           />
-          <button onClick={fetchData} className="ml-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors p-2">
-            Refresh
+          <button onClick={() => fetchData(true)} disabled={refreshing} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2">
+            {refreshing ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></span> : null}
+            {refreshing ? 'Refreshing...' : 'Refresh Data'}
           </button>
           <div className="h-6 w-px bg-gray-200"></div>
           <button 

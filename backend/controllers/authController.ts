@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { createNotification } from '../utils/notificationUtils';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { createActivityLog } from '../utils/activityLogUtils';
@@ -23,14 +24,14 @@ export const login = async (req: Request, res: Response) => {
         return res.status(401).json({ message: 'Your account is inactive. Please contact admin.' });
       }
 
-      await createActivityLog({
+      createActivityLog({
         userId: user.id,
         action: 'LOGIN',
         entityType: 'User',
         entityId: user.id,
         description: 'User logged in',
         req
-      });
+      }).catch(err => console.error('Failed to create activity log:', err));
 
       res.json({
         id: user.id,
@@ -127,6 +128,73 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const requestPasswordReset = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await prisma.user.update({
+      where: { email },
+      data: { resetPasswordRequested: true }
+    });
+
+    const admins = await prisma.user.findMany({
+      where: { role: 'SuperAdmin' }
+    });
+
+    for (const admin of admins) {
+      await createNotification({
+        userId: admin.id,
+        title: 'Password Reset Request',
+        message: `${user.name} (${user.email}) requested a password reset.`,
+        type: 'system_alert',
+        entityType: 'User',
+        entityId: user.id
+      });
+    }
+
+    res.json({ message: 'Password reset request sent to admin.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const executePasswordReset = async (req: Request, res: Response) => {
+  try {
+    const { email, newPassword } = req.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.canResetPassword) {
+      return res.status(403).json({ message: 'Password reset not approved by admin.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { email },
+      data: { 
+        password: hashedPassword, 
+        canResetPassword: false, 
+        resetPasswordRequested: false 
+      }
+    });
+
+    res.json({ message: 'Password updated successfully.' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

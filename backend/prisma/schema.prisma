@@ -17,6 +17,8 @@ model User {
   designation      String?
   isActive         Boolean            @default(true)
   mustChangePassword Boolean          @default(true)
+  resetPasswordRequested Boolean      @default(false)
+  canResetPassword       Boolean      @default(false)
   departmentId     Int?
   department       Department?        @relation(fields: [departmentId], references: [id])
   assignedTasks    Task[]             @relation("AssignedTo")

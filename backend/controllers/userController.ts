@@ -40,7 +40,7 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
         createdAt: true,
       },
     });
-    res.json(users);
+    res.status(200).json(users);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -345,6 +345,39 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const grantPasswordReset = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = Number(req.params.id);
+    
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { 
+        canResetPassword: true, 
+        resetPasswordRequested: false 
+      }
+    });
+
+    await createNotification({
+      userId,
+      title: 'Password Reset Approved',
+      message: 'Admin has approved your password reset request. You can now reset your password on the login page.',
+      type: 'system_alert',
+      entityType: 'User',
+      entityId: userId
+    });
+
+    res.json({ message: 'Password reset granted successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

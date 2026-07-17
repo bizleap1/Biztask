@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, Edit, Eye, UserX, UserCheck, Shield, Trash2 } from 'lucide-react';
 import { userService } from '../services/userService';
+import api from '../services/api';
 
 export default function Employees() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -123,6 +124,18 @@ export default function Employees() {
       isActive: emp.isActive
     });
     setShowEditModal(true);
+  };
+
+  const grantReset = async (empId: number) => {
+    if (window.confirm('Are you sure you want to approve password reset for this employee?')) {
+      try {
+        await api.patch(`/users/${empId}/grant-reset`);
+        fetchData();
+      } catch (error: any) {
+        console.error(error);
+        alert(error.response?.data?.message || 'Action failed');
+      }
+    }
   };
 
   const openView = (emp: any) => {
@@ -253,6 +266,11 @@ export default function Employees() {
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${emp.isActive ? 'badge-success' : 'badge-danger'}`}>
                         {emp.isActive ? 'Active' : 'Inactive'}
                       </span>
+                      {emp.resetPasswordRequested && (
+                        <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Reset Requested
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <button onClick={() => openView(emp)} className="text-gray-400 hover:text-[var(--color-brand-black)] transition-colors" title="View">
@@ -270,6 +288,16 @@ export default function Employees() {
                           >
                             {emp.isActive ? <UserX size={18} /> : <UserCheck size={18} />}
                           </button>
+                          {emp.resetPasswordRequested && (
+                            <button 
+                              onClick={() => grantReset(emp.id)}
+                              className="text-yellow-600 hover:text-yellow-800 transition-colors p-1"
+                              title="Approve Password Reset"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            </button>
+                          )}
+
                           <button 
                             onClick={() => handleDelete(emp.id)} 
                             className="text-gray-400 hover:text-red-600 transition-colors p-1"

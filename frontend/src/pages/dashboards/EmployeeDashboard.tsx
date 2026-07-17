@@ -3,10 +3,12 @@ import { dashboardService } from '../../services/dashboardService';
 import { CheckCircle, Clock, XCircle, AlertTriangle, FileText, CheckSquare, Target, Bell } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Link } from 'react-router-dom';
+import TaskProgressionWidget from '../../components/TaskProgressionWidget';
 
 export default function EmployeeDashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
 
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -28,12 +30,14 @@ export default function EmployeeDashboard() {
 
   const fetchData = async () => {
     try {
+      setRefreshing(true);
       const res = await dashboardService.getEmployeeDashboard();
       setData(res);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -55,8 +59,9 @@ export default function EmployeeDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.name}!</h1>
           <p className="text-gray-500 mt-1">Here is your productivity overview.</p>
         </div>
-        <button onClick={fetchData} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-          Refresh Data
+        <button onClick={fetchData} disabled={refreshing} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2">
+          {refreshing ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></span> : null}
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
         </button>
       </div>
 
@@ -133,6 +138,8 @@ export default function EmployeeDashboard() {
           </div>
         </div>
       </div>
+
+      <TaskProgressionWidget />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Chart */}

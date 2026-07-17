@@ -8,20 +8,23 @@ export default function ManagerDashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ startDate: '', endDate: '' });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
   }, [filters]);
 
-  const fetchData = async () => {
+  const fetchData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!data || !isRefresh) setLoading(true);
+      else setRefreshing(true);
       const res = await dashboardService.getManagerDashboard(filters);
       setData(res);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -59,8 +62,9 @@ export default function ManagerDashboard() {
             value={filters.endDate}
             onChange={e => setFilters({...filters, endDate: e.target.value})}
           />
-          <button onClick={fetchData} className="w-full sm:w-auto ml-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors p-2">
-            Refresh
+          <button onClick={() => fetchData(true)} disabled={refreshing} className="w-full sm:w-auto ml-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors p-2 disabled:opacity-50 flex items-center justify-center gap-2">
+            {refreshing ? <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600"></span> : null}
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>

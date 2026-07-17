@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { calculateMonthlyReportRate } from '../utils/reportUtils';
 
 import prisma from '../prismaClient';
 
@@ -353,9 +354,7 @@ export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
     
     let myReportSubmissionRate = 0;
     if (user) {
-      const daysSinceJoined = Math.max(1, Math.floor((new Date().getTime() - user.createdAt.getTime()) / (1000 * 3600 * 24)));
-      const totalReports = await prisma.dailyReport.count({ where: { userId } });
-      myReportSubmissionRate = Math.min(100, (totalReports / (daysSinceJoined * (5/7))) * 100).toFixed(1) as any;
+      myReportSubmissionRate = Number(await calculateMonthlyReportRate(userId));
     }
 
     res.json({
