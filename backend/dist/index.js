@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const client_1 = require("@prisma/client");
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const taskRoutes_1 = __importDefault(require("./routes/taskRoutes"));
@@ -19,7 +18,6 @@ const uploadRoutes_1 = __importDefault(require("./routes/uploadRoutes"));
 const systemRoutes_1 = __importDefault(require("./routes/systemRoutes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const prisma = new client_1.PrismaClient();
 const PORT = process.env.PORT || 5000;
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use((0, cors_1.default)({

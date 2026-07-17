@@ -12,7 +12,7 @@ export const getActivityLogs = async (req: AuthRequest, res: Response) => {
     const { role } = req.user!;
 
     // Employees shouldn't access this route, it's guarded by roleMiddleware
-    let whereClause: any = {};
+    let whereClause: any = { isDeleted: false };
 
     if (userId) whereClause.userId = Number(userId);
     if (action) whereClause.action = String(action);
@@ -67,13 +67,52 @@ export const getActivityLogs = async (req: AuthRequest, res: Response) => {
 export const getMyActivityLogs = async (req: AuthRequest, res: Response) => {
   try {
     const logs = await prisma.activityLog.findMany({
-      where: { userId: req.user!.id },
+      where: { userId: req.user!.id, isDeleted: false },
       orderBy: { createdAt: 'desc' },
       take: 50 // Limit to recent 50
     });
     res.json(logs);
   } catch (error) {
     console.error('Get My Activity Logs Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Delete activity log
+// @route   DELETE /api/activity-logs/:id
+// @access  Private
+export const deleteActivityLog = async (req: AuthRequest, res: Response) => {
+  try {
+    const log = await prisma.activityLog.findUnique({ where: { id: Number(req.params.id) } });
+    if (!log) return res.status(404).json({ message: 'Log not found' });
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager' && log.userId !== req.user!.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    await prisma.activityLog.update({ where: { id: Number(req.params.id) }, data: { isDeleted: true } });
+    res.json({ message: 'Activity log deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Bulk delete activity logs
+// @route   DELETE /api/activity-logs/bulk
+// @access  Private
+export const bulkDeleteActivityLogs = async (req: AuthRequest, res: Response) => {
+  try {
+    const { ids } = req.body;
+    let whereClause: any = {};
+    if (ids && Array.isArray(ids) && ids.length > 0) {
+      whereClause.id = { in: ids };
+    }
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+      whereClause.userId = req.user!.id;
+    }
+    const deleted = await prisma.activityLog.updateMany({ where: whereClause, data: { isDeleted: true } });
+    res.json({ message: `${deleted.count} logs deleted successfully` });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Server error' });
   }
 };

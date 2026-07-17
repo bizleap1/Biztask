@@ -39,5 +39,10 @@ export const taskService = {
   submitTask: async (id: number, submissionData: any) => {
     const response = await api.post(`/tasks/${id}/submit`, submissionData);
     return response.data;
+  },
+
+  bulkDeleteTasks: async (ids: number[]) => {
+    const response = await api.delete('/tasks/bulk', { data: { ids } });
+    return response.data;
   }
 };

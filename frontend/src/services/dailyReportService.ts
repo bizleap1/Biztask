@@ -40,5 +40,10 @@ export const dailyReportService = {
   deleteReport: async (id: number) => {
     const response = await api.delete(`/daily-reports/${id}`);
     return response.data;
+  },
+
+  bulkDeleteReports: async (ids: number[]) => {
+    const response = await api.delete('/daily-reports/bulk', { data: { ids } });
+    return response.data;
   }
 };

@@ -33,7 +33,14 @@ export default function AssignTask() {
     priority: 'Medium',
     deadline: '',
     proofRequired: true,
-    proofType: ''
+    proofType: '',
+    clientName: '',
+    clientDetails: '',
+    driveLink: '',
+    socialMediaPlatform: '',
+    postType: '',
+    githubRepo: '',
+    environment: ''
   });
 
   useEffect(() => {
@@ -59,7 +66,8 @@ export default function AssignTask() {
       setSuccess(true);
       setFormData({
         title: '', description: '', departmentId: '', category: '',
-        assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: ''
+        assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: '',
+        clientName: '', clientDetails: '', driveLink: '', socialMediaPlatform: '', postType: '', githubRepo: '', environment: ''
       });
       // Optionally navigate to my-tasks after a short delay
       setTimeout(() => navigate('/my-tasks'), 2000);
@@ -123,6 +131,67 @@ export default function AssignTask() {
                 </select>
               </div>
             </div>
+
+            {/* Dynamic Fields Based on Department */}
+            {formData.departmentId && (
+              <div className="p-4 bg-gray-50 border border-gray-100 rounded-lg space-y-4">
+                <h4 className="text-sm font-bold text-gray-900 border-b border-gray-200 pb-2 mb-3">
+                  {formData.departmentId === '2' ? 'Development Details' : formData.departmentId === '3' ? 'Media Details' : 'Project Details'}
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client/Project Name</label>
+                    <input type="text" value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-black)] focus:border-transparent outline-none transition-all" placeholder="e.g. Acme Corp" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Drive Link (Assets)</label>
+                    <input type="url" value={formData.driveLink} onChange={e => setFormData({...formData, driveLink: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-black)] focus:border-transparent outline-none transition-all" placeholder="https://drive.google.com/..." />
+                  </div>
+                </div>
+
+                {/* Media Specific */}
+                {formData.departmentId === '3' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Social Media Platform</label>
+                      <select value={formData.socialMediaPlatform} onChange={e => setFormData({...formData, socialMediaPlatform: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-black)] focus:border-transparent outline-none transition-all bg-white">
+                        <option value="">Select Platform...</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="LinkedIn">LinkedIn</option>
+                        <option value="Facebook">Facebook</option>
+                        <option value="Twitter">Twitter</option>
+                        <option value="TikTok">TikTok</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Post Type</label>
+                      <input type="text" value={formData.postType} onChange={e => setFormData({...formData, postType: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-black)] focus:border-transparent outline-none transition-all" placeholder="e.g. Reel, Carousel, Story" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Dev Specific */}
+                {formData.departmentId === '2' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">GitHub Repository</label>
+                      <input type="text" value={formData.githubRepo} onChange={e => setFormData({...formData, githubRepo: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-black)] focus:border-transparent outline-none transition-all" placeholder="e.g. bizleap1/Biztask" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
+                      <select value={formData.environment} onChange={e => setFormData({...formData, environment: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-brand-black)] focus:border-transparent outline-none transition-all bg-white">
+                        <option value="">Select Environment...</option>
+                        <option value="Local">Local</option>
+                        <option value="Development">Development</option>
+                        <option value="Staging">Staging</option>
+                        <option value="Production">Production</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>

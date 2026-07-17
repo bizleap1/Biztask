@@ -14,5 +14,15 @@ export const submissionService = {
   rejectSubmission: async (id: number, managerFeedback: string) => {
     const response = await api.patch(`/submissions/${id}/reject`, { managerFeedback });
     return response.data;
+  },
+
+  deleteSubmission: async (id: number) => {
+    const response = await api.delete(`/submissions/${id}`);
+    return response.data;
+  },
+
+  bulkDeleteSubmissions: async (ids: number[]) => {
+    const response = await api.delete('/submissions/bulk', { data: { ids } });
+    return response.data;
   }
 };

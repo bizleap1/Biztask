@@ -56,6 +56,13 @@ model Task {
   deadline       DateTime
   proofRequired  Boolean          @default(true)
   proofType      String?          // Image, PDF, Video, Link, Screenshot, GitHub PR, Website URL, Social Media Link
+  clientName     String?          // General Project Field
+  clientDetails  String?          // General Project Field
+  driveLink      String?          // General Project Field
+  socialMediaPlatform String?     // Media Dept Field
+  postType       String?          // Media Dept Field
+  githubRepo     String?          // Dev Dept Field
+  environment    String?          // Dev Dept Field
   departmentId   Int
   department     Department       @relation(fields: [departmentId], references: [id])
   assignedToId   Int?
@@ -64,6 +71,7 @@ model Task {
   assignedBy     User             @relation("AssignedBy", fields: [assignedById], references: [id])
   submissions    TaskSubmission[]
   comments       Comment[]
+  isDeleted      Boolean          @default(false)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -92,6 +100,7 @@ model TaskSubmission {
   reviewedBy           User?     @relation("ReviewedBy", fields: [reviewedById], references: [id])
   submittedAt          DateTime  @default(now())
   reviewedAt           DateTime?
+  isDeleted            Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -116,6 +125,7 @@ model DailyReport {
   reviewedById    Int?
   reviewedBy      User?    @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
+  isDeleted       Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -149,6 +159,7 @@ model ActivityLog {
   metadata    String?  // Store JSON as string
   ipAddress   String?
   userAgent   String?
+  isDeleted   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   @@index([createdAt])

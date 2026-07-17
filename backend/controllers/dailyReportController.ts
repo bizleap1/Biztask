@@ -93,7 +93,7 @@ export const getAllReports = async (req: AuthRequest, res: Response) => {
     const { employeeId, departmentId, status, startDate, endDate } = req.query;
     const { role, departmentId: userDeptId } = req.user!;
 
-    let whereClause: any = {};
+    let whereClause: any = { isDeleted: false };
 
     // Managers and SuperAdmins can see all departments
     if (departmentId) {
@@ -147,7 +147,7 @@ export const getAllReports = async (req: AuthRequest, res: Response) => {
 export const getMyReports = async (req: AuthRequest, res: Response) => {
   try {
     const reports = await prisma.dailyReport.findMany({
-      where: { userId: req.user!.id },
+      where: { userId: req.user!.id, isDeleted: false },
       include: {
         department: { select: { id: true, name: true } },
         reviewedBy: { select: { id: true, name: true } }
@@ -316,11 +316,37 @@ export const markNeedsCorrection = async (req: AuthRequest, res: Response) => {
 
 // @desc    Delete/Archive report
 // @route   DELETE /api/daily-reports/:id
-// @access  Private (SuperAdmin)
+// @access  Private
 export const deleteReport = async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.dailyReport.delete({ where: { id: Number(req.params.id) } });
+    const report = await prisma.dailyReport.findUnique({ where: { id: Number(req.params.id) } });
+    if (!report) return res.status(404).json({ message: 'Report not found' });
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager' && report.userId !== req.user!.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    await prisma.dailyReport.update({ where: { id: Number(req.params.id) }, data: { isDeleted: true } });
     res.json({ message: 'Report deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Bulk delete reports
+// @route   DELETE /api/daily-reports/bulk
+// @access  Private
+export const bulkDeleteReports = async (req: AuthRequest, res: Response) => {
+  try {
+    const { ids } = req.body;
+    let whereClause: any = {};
+    if (ids && Array.isArray(ids) && ids.length > 0) {
+      whereClause.id = { in: ids };
+    }
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+      whereClause.userId = req.user!.id;
+    }
+    const deleted = await prisma.dailyReport.updateMany({ where: whereClause, data: { isDeleted: true } });
+    res.json({ message: `${deleted.count} reports deleted successfully` });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

@@ -3,18 +3,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.activateUser = exports.deactivateUser = exports.updateUser = exports.createUser = exports.getUserById = exports.getUsers = exports.getDepartments = void 0;
+exports.grantPasswordReset = exports.deleteUser = exports.activateUser = exports.deactivateUser = exports.updateUser = exports.createUser = exports.getUserById = exports.getUsers = exports.getDepartments = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const client_1 = require("@prisma/client");
 const activityLogUtils_1 = require("../utils/activityLogUtils");
 const notificationUtils_1 = require("../utils/notificationUtils");
-const prisma = new client_1.PrismaClient();
+const prismaClient_1 = __importDefault(require("../prismaClient"));
 // @desc    Get all users
 // @route   GET /api/users
 // @access  Private/SuperAdmin, Manager
 const getDepartments = async (req, res) => {
     try {
-        const departments = await prisma.department.findMany();
+        const departments = await prismaClient_1.default.department.findMany();
         res.json(departments);
     }
     catch (error) {
@@ -30,7 +29,7 @@ const getUsers = async (req, res) => {
         if (req.user?.role !== 'SuperAdmin') {
             whereClause.role = { not: 'SuperAdmin' };
         }
-        const users = await prisma.user.findMany({
+        const users = await prismaClient_1.default.user.findMany({
             where: whereClause,
             select: {
                 id: true,
@@ -41,9 +40,11 @@ const getUsers = async (req, res) => {
                 designation: true,
                 isActive: true,
                 createdAt: true,
+                resetPasswordRequested: true,
+                canResetPassword: true,
             },
         });
-        res.json(users);
+        res.status(200).json(users);
     }
     catch (error) {
         console.error(error);
@@ -56,7 +57,7 @@ exports.getUsers = getUsers;
 // @access  Private/SuperAdmin, Manager (or self)
 const getUserById = async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({
+        const user = await prismaClient_1.default.user.findUnique({
             where: { id: Number(req.params.id) },
             select: {
                 id: true,
@@ -68,6 +69,8 @@ const getUserById = async (req, res) => {
                 isActive: true,
                 createdAt: true,
                 mustChangePassword: true,
+                resetPasswordRequested: true,
+                canResetPassword: true,
             },
         });
         if (user) {
@@ -93,7 +96,7 @@ exports.getUserById = getUserById;
 const createUser = async (req, res) => {
     try {
         const { name, email, password, role, departmentId, designation } = req.body;
-        const userExists = await prisma.user.findUnique({ where: { email } });
+        const userExists = await prismaClient_1.default.user.findUnique({ where: { email } });
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
         }
@@ -109,7 +112,7 @@ const createUser = async (req, res) => {
             else if (role === 'MediaEmployee')
                 assignedDepartmentId = 2;
         }
-        const user = await prisma.user.create({
+        const user = await prismaClient_1.default.user.create({
             data: {
                 name,
                 email,
@@ -157,7 +160,7 @@ exports.createUser = createUser;
 // @access  Private/SuperAdmin, Manager
 const updateUser = async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({ where: { id: Number(req.params.id) } });
+        const user = await prismaClient_1.default.user.findUnique({ where: { id: Number(req.params.id) } });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -176,7 +179,7 @@ const updateUser = async (req, res) => {
             else if (role === 'MediaEmployee')
                 assignedDepartmentId = 2;
         }
-        const updatedUser = await prisma.user.update({
+        const updatedUser = await prismaClient_1.default.user.update({
             where: { id: Number(req.params.id) },
             data: {
                 name: name || user.name,
@@ -220,17 +223,17 @@ const deactivateUser = async (req, res) => {
         if (req.user?.id === userId) {
             return res.status(400).json({ message: 'You cannot deactivate your own account' });
         }
-        const userToDeactivate = await prisma.user.findUnique({ where: { id: userId } });
+        const userToDeactivate = await prismaClient_1.default.user.findUnique({ where: { id: userId } });
         if (!userToDeactivate) {
             return res.status(404).json({ message: 'User not found' });
         }
         if (userToDeactivate.role === 'SuperAdmin') {
-            const superAdminCount = await prisma.user.count({ where: { role: 'SuperAdmin', isActive: true } });
+            const superAdminCount = await prismaClient_1.default.user.count({ where: { role: 'SuperAdmin', isActive: true } });
             if (superAdminCount <= 1) {
                 return res.status(400).json({ message: 'Cannot deactivate the last active SuperAdmin' });
             }
         }
-        const updatedUser = await prisma.user.update({
+        const updatedUser = await prismaClient_1.default.user.update({
             where: { id: userId },
             data: { isActive: false },
         });
@@ -263,7 +266,7 @@ exports.deactivateUser = deactivateUser;
 // @access  Private/SuperAdmin
 const activateUser = async (req, res) => {
     try {
-        const updatedUser = await prisma.user.update({
+        const updatedUser = await prismaClient_1.default.user.update({
             where: { id: Number(req.params.id) },
             data: { isActive: true },
         });
@@ -284,36 +287,36 @@ const deleteUser = async (req, res) => {
         if (req.user?.id === userId) {
             return res.status(400).json({ message: 'You cannot delete your own account' });
         }
-        const userToDelete = await prisma.user.findUnique({ where: { id: userId } });
+        const userToDelete = await prismaClient_1.default.user.findUnique({ where: { id: userId } });
         if (!userToDelete) {
             return res.status(404).json({ message: 'User not found' });
         }
         if (userToDelete.role === 'SuperAdmin') {
-            const superAdminCount = await prisma.user.count({ where: { role: 'SuperAdmin', isActive: true } });
+            const superAdminCount = await prismaClient_1.default.user.count({ where: { role: 'SuperAdmin', isActive: true } });
             if (superAdminCount <= 1) {
                 return res.status(400).json({ message: 'Cannot delete the last active SuperAdmin' });
             }
         }
         // Manual cascade delete for safety
-        await prisma.taskSubmission.deleteMany({ where: { userId } });
-        await prisma.taskSubmission.deleteMany({ where: { reviewedById: userId } });
-        await prisma.comment.deleteMany({ where: { userId } });
-        await prisma.notification.deleteMany({ where: { userId } });
-        await prisma.activityLog.deleteMany({ where: { userId } });
-        await prisma.dailyReport.deleteMany({ where: { userId } });
-        await prisma.dailyReport.updateMany({ where: { reviewedById: userId }, data: { reviewedById: null } });
+        await prismaClient_1.default.taskSubmission.deleteMany({ where: { userId } });
+        await prismaClient_1.default.taskSubmission.deleteMany({ where: { reviewedById: userId } });
+        await prismaClient_1.default.comment.deleteMany({ where: { userId } });
+        await prismaClient_1.default.notification.deleteMany({ where: { userId } });
+        await prismaClient_1.default.activityLog.deleteMany({ where: { userId } });
+        await prismaClient_1.default.dailyReport.deleteMany({ where: { userId } });
+        await prismaClient_1.default.dailyReport.updateMany({ where: { reviewedById: userId }, data: { reviewedById: null } });
         // Update tasks assigned TO this user to be Unassigned
-        await prisma.task.updateMany({
+        await prismaClient_1.default.task.updateMany({
             where: { assignedToId: userId },
             data: { assignedToId: null, status: 'Pending' }
         });
         // Delete tasks assigned BY this user (e.g. if manager is deleted, testing purposes)
-        const tasksAssignedBy = await prisma.task.findMany({ where: { assignedById: userId } });
+        const tasksAssignedBy = await prismaClient_1.default.task.findMany({ where: { assignedById: userId } });
         for (const t of tasksAssignedBy) {
-            await prisma.taskSubmission.deleteMany({ where: { taskId: t.id } });
-            await prisma.task.delete({ where: { id: t.id } });
+            await prismaClient_1.default.taskSubmission.deleteMany({ where: { taskId: t.id } });
+            await prismaClient_1.default.task.delete({ where: { id: t.id } });
         }
-        await prisma.user.delete({
+        await prismaClient_1.default.user.delete({
             where: { id: userId }
         });
         await (0, activityLogUtils_1.createActivityLog)({
@@ -332,3 +335,33 @@ const deleteUser = async (req, res) => {
     }
 };
 exports.deleteUser = deleteUser;
+const grantPasswordReset = async (req, res) => {
+    try {
+        const userId = Number(req.params.id);
+        const user = await prismaClient_1.default.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        await prismaClient_1.default.user.update({
+            where: { id: userId },
+            data: {
+                canResetPassword: true,
+                resetPasswordRequested: false
+            }
+        });
+        await (0, notificationUtils_1.createNotification)({
+            userId,
+            title: 'Password Reset Approved',
+            message: 'Admin has approved your password reset request. You can now reset your password on the login page.',
+            type: 'system_alert',
+            entityType: 'User',
+            entityId: userId
+        });
+        res.json({ message: 'Password reset granted successfully' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.grantPasswordReset = grantPasswordReset;

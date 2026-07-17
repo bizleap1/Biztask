@@ -7,7 +7,8 @@ import {
   updateReport, 
   reviewReport, 
   markNeedsCorrection, 
-  deleteReport 
+  deleteReport,
+  bulkDeleteReports
 } from '../controllers/dailyReportController';
 import { protect } from '../middleware/authMiddleware';
 import { authorizeRoles } from '../middleware/roleMiddleware';
@@ -21,11 +22,13 @@ router.route('/')
 
 router.get('/my', protect, getMyReports as any);
 
+router.delete('/bulk', protect, bulkDeleteReports as any);
+
 // Specific report routes
 router.route('/:id')
   .get(protect, getReportById as any)
   .put(protect, authorizeRoles('DevEmployee', 'MediaEmployee', 'SuperAdmin', 'Manager'), updateReport as any)
-  .delete(protect, authorizeRoles('SuperAdmin'), deleteReport as any);
+  .delete(protect, deleteReport as any);
 
 // Manager actions
 router.patch('/:id/review', protect, authorizeRoles('SuperAdmin', 'Manager'), reviewReport as any);

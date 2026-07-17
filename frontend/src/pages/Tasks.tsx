@@ -37,6 +37,9 @@ export default function Tasks() {
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [expandedDesc, setExpandedDesc] = useState('');
+  const [expandedDynamic, setExpandedDynamic] = useState<any>({});
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -110,8 +113,43 @@ export default function Tasks() {
   };
 
   const handleSaveDescription = async (id: number) => {
-    await updateTaskInline(id, { description: expandedDesc });
+    await updateTaskInline(id, { description: expandedDesc, ...expandedDynamic });
     setExpandedTaskId(null);
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(tasks.map(t => t.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} tasks?`)) return;
+    try {
+      await taskService.bulkDeleteTasks(selectedIds);
+      setSelectedIds([]);
+      fetchTasks();
+    } catch (error) {
+      console.error('Failed to delete tasks', error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to delete all currently visible tasks?')) return;
+    const ids = tasks.map(t => t.id);
+    try {
+      await taskService.bulkDeleteTasks(ids);
+      setSelectedIds([]);
+      fetchTasks();
+    } catch (error) {
+      console.error('Failed to clear tasks', error);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -189,6 +227,28 @@ export default function Tasks() {
         </div>
       </div>
 
+      {/* Bulk Actions */}
+      {(selectedIds.length > 0 || tasks.length > 0) && (
+        <div className="flex justify-end gap-3 mb-2">
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} /> Delete Selected ({selectedIds.length})
+            </button>
+          )}
+          {tasks.length > 0 && (isSuperAdmin || loggedInUser?.role === 'Manager') && (
+            <button
+              onClick={handleClearAll}
+              className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} /> Clear All
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
         <div className="flex-1 min-w-[250px] relative">
@@ -222,6 +282,9 @@ export default function Tasks() {
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-gray-500 bg-white">
+                <th className="p-4 font-medium w-12">
+                  <input type="checkbox" checked={selectedIds.length === tasks.length && tasks.length > 0} onChange={handleSelectAll} className="rounded border-gray-300" />
+                </th>
                 <th className="px-5 py-3 font-medium border-r border-gray-100 w-1/3">Task</th>
                 <th className="px-5 py-3 font-medium border-r border-gray-100">Assignee</th>
                 <th className="px-5 py-3 font-medium border-r border-gray-100">Assigned By</th>
@@ -232,9 +295,9 @@ export default function Tasks() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading tasks...</td></tr>
+                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">Loading tasks...</td></tr>
               ) : filteredTasks.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No tasks found.</td></tr>
+                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">No tasks found.</td></tr>
               ) : (
                 filteredTasks.map((t) => (
                   <Fragment key={t.id}>
@@ -247,6 +310,15 @@ export default function Tasks() {
                         } else {
                           setExpandedTaskId(t.id);
                           setExpandedDesc(t.description || '');
+                          setExpandedDynamic({
+                            clientName: t.clientName || '',
+                            clientDetails: t.clientDetails || '',
+                            driveLink: t.driveLink || '',
+                            socialMediaPlatform: t.socialMediaPlatform || '',
+                            postType: t.postType || '',
+                            githubRepo: t.githubRepo || '',
+                            environment: t.environment || ''
+                          });
                         }
                       } else {
                         navigate(`/tasks/${t.id}`);
@@ -254,6 +326,9 @@ export default function Tasks() {
                     }} 
                     className="hover:bg-gray-50 transition-colors cursor-pointer group border-b border-gray-100"
                   >
+                    <td className="p-4">
+                      <input type="checkbox" checked={selectedIds.includes(t.id)} onChange={(e) => { e.stopPropagation(); handleSelectRow(t.id); }} className="rounded border-gray-300" />
+                    </td>
                     <td className="px-5 py-3 border-r border-gray-100">
                       <div className="flex items-center gap-2">
                         <FileText size={16} className="text-gray-400" />
@@ -387,18 +462,20 @@ export default function Tasks() {
                           <Edit size={16} />
                         </button>
                       )}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
-                        className="text-gray-400 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {(isSuperAdmin || loggedInUser?.role === 'Manager' || t.assignedBy?.id === loggedInUser?.id) && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
+                          className="text-gray-400 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                   {expandedTaskId === t.id && (
                     <tr>
-                      <td colSpan={6} className="bg-indigo-50/50 p-6 border-b border-gray-100">
+                      <td colSpan={7} className="bg-indigo-50/50 p-6 border-b border-gray-100">
                         <div className="space-y-3">
                           <div className="flex justify-between items-center">
                             <h4 className="text-sm font-bold text-gray-900">Task Details & Description (Client Info, Links, etc.)</h4>
@@ -409,6 +486,41 @@ export default function Tasks() {
                               Save Details
                             </button>
                           </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Client Name</label>
+                              <input type="text" value={expandedDynamic.clientName} onChange={(e) => setExpandedDynamic({...expandedDynamic, clientName: e.target.value})} className="w-full p-2 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Drive Link</label>
+                              <input type="text" value={expandedDynamic.driveLink} onChange={(e) => setExpandedDynamic({...expandedDynamic, driveLink: e.target.value})} className="w-full p-2 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none" />
+                            </div>
+                            {t.department?.name === 'Media' && (
+                              <>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Platform</label>
+                                  <input type="text" value={expandedDynamic.socialMediaPlatform} onChange={(e) => setExpandedDynamic({...expandedDynamic, socialMediaPlatform: e.target.value})} className="w-full p-2 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Post Type</label>
+                                  <input type="text" value={expandedDynamic.postType} onChange={(e) => setExpandedDynamic({...expandedDynamic, postType: e.target.value})} className="w-full p-2 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                </div>
+                              </>
+                            )}
+                            {t.department?.name === 'Development' && (
+                              <>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">GitHub Repo</label>
+                                  <input type="text" value={expandedDynamic.githubRepo} onChange={(e) => setExpandedDynamic({...expandedDynamic, githubRepo: e.target.value})} className="w-full p-2 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Environment</label>
+                                  <input type="text" value={expandedDynamic.environment} onChange={(e) => setExpandedDynamic({...expandedDynamic, environment: e.target.value})} className="w-full p-2 text-sm border border-gray-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Description / Additional Details</label>
                           <textarea 
                             value={expandedDesc} 
                             onChange={(e) => setExpandedDesc(e.target.value)} 

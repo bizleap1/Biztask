@@ -13,11 +13,12 @@ router.route('/')
     .post(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('DevEmployee', 'MediaEmployee', 'SuperAdmin', 'Manager'), dailyReportController_1.submitReport)
     .get(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), dailyReportController_1.getAllReports);
 router.get('/my', authMiddleware_1.protect, dailyReportController_1.getMyReports);
+router.delete('/bulk', authMiddleware_1.protect, dailyReportController_1.bulkDeleteReports);
 // Specific report routes
 router.route('/:id')
     .get(authMiddleware_1.protect, dailyReportController_1.getReportById)
     .put(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('DevEmployee', 'MediaEmployee', 'SuperAdmin', 'Manager'), dailyReportController_1.updateReport)
-    .delete(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin'), dailyReportController_1.deleteReport);
+    .delete(authMiddleware_1.protect, dailyReportController_1.deleteReport);
 // Manager actions
 router.patch('/:id/review', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), dailyReportController_1.reviewReport);
 router.patch('/:id/needs-correction', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), dailyReportController_1.markNeedsCorrection);

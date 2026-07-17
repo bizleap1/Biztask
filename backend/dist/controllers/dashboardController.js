@@ -1,8 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getHrDashboard = exports.getEmployeeDashboard = exports.getManagerDashboard = exports.getAdminDashboard = void 0;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+const reportUtils_1 = require("../utils/reportUtils");
+const prismaClient_1 = __importDefault(require("../prismaClient"));
 // Helper to calculate performance score
 const calculatePerformanceScore = (approved, overdue, rejected, dailyReports) => {
     // Simple formula as requested
@@ -36,65 +39,72 @@ const getAdminDashboard = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tasksQuery = { where: { ...taskDeptFilter } };
-        // Batch independent queries
-        const [totalEmployees, activeEmployees, devDept, mediaDept, managementCount, totalTasks, pendingTasks, inProgressTasks, submittedTasks, approvedTasks, rejectedTasks, overdueTasksCount, overdueTaskList, totalDailyReports, todayReports, expectedSubmitters, reportsNeedingCorrection, reviewedReports, pendingReviewSubmissions, recentTaskSubmissions, recentDailyReports, realActivityLogs, departments, employees, upcomingDeadlines] = await Promise.all([
-            prisma.user.count({ where: { ...deptFilter } }),
-            prisma.user.count({ where: { isActive: true, ...deptFilter } }),
-            prisma.department.findUnique({ where: { name: 'Development' } }),
-            prisma.department.findUnique({ where: { name: 'Media' } }),
-            prisma.user.count({ where: { role: { in: ['Manager', 'SuperAdmin'] } } }),
-            prisma.task.count(tasksQuery),
-            prisma.task.count({ where: { ...tasksQuery.where, status: 'Pending' } }),
-            prisma.task.count({ where: { ...tasksQuery.where, status: 'In Progress' } }),
-            prisma.task.count({ where: { ...tasksQuery.where, status: 'Submitted' } }),
-            prisma.task.count({ where: { ...tasksQuery.where, status: 'Approved' } }),
-            prisma.task.count({ where: { ...tasksQuery.where, status: 'Rejected' } }),
-            prisma.task.count({ where: { ...tasksQuery.where, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
-            prisma.task.findMany({
+        const [departments, totalEmployees, activeEmployees, devDept, mediaDept, managementCount, totalDailyReports, todayReports, expectedSubmitters, reportsNeedingCorrection, reviewedReports, taskStatusCounts, overdueTasksCount, overdueTaskList, pendingReviewSubmissions, recentTaskSubmissions, recentDailyReports, realActivityLogs, employees, upcomingDeadlines, departmentWiseTaskStatsRaw, departmentWiseOverdueRaw, departmentWiseReportStatsRaw, departmentWiseReportTodayRaw, taskGroups, overdueGroups, reportGroups] = await Promise.all([
+            prismaClient_1.default.department.findMany(),
+            prismaClient_1.default.user.count({ where: { role: { not: 'SuperAdmin' }, ...deptFilter } }),
+            prismaClient_1.default.user.count({ where: { isActive: true, role: { not: 'SuperAdmin' }, ...deptFilter } }),
+            prismaClient_1.default.department.findUnique({ where: { name: 'Development' } }),
+            prismaClient_1.default.department.findUnique({ where: { name: 'Media' } }),
+            prismaClient_1.default.user.count({ where: { role: { in: ['Manager', 'SuperAdmin'] } } }),
+            prismaClient_1.default.dailyReport.count({ where: { ...deptFilter } }),
+            prismaClient_1.default.dailyReport.count({ where: { ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
+            prismaClient_1.default.user.count({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
+            prismaClient_1.default.dailyReport.count({ where: { ...deptFilter, status: 'Needs Correction' } }),
+            prismaClient_1.default.dailyReport.count({ where: { ...deptFilter, status: 'Reviewed' } }),
+            prismaClient_1.default.task.groupBy({ by: ['status'], where: tasksQuery.where, _count: { id: true } }),
+            prismaClient_1.default.task.count({ where: { ...tasksQuery.where, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
+            prismaClient_1.default.task.findMany({
                 where: { ...tasksQuery.where, deadline: { lt: new Date() }, status: { not: 'Approved' } },
                 include: { assignedTo: { select: { name: true } }, department: { select: { name: true } } },
                 take: 5
             }),
-            prisma.dailyReport.count({ where: { ...deptFilter } }),
-            prisma.dailyReport.count({ where: { ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
-            prisma.user.count({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
-            prisma.dailyReport.count({ where: { ...deptFilter, status: 'Needs Correction' } }),
-            prisma.dailyReport.count({ where: { ...deptFilter, status: 'Reviewed' } }),
-            prisma.taskSubmission.count({ where: { reviewStatus: 'Pending Review', task: taskDeptFilter } }),
-            prisma.taskSubmission.findMany({
+            prismaClient_1.default.taskSubmission.count({ where: { reviewStatus: 'Pending Review', task: taskDeptFilter } }),
+            prismaClient_1.default.taskSubmission.findMany({
                 where: { task: taskDeptFilter },
                 include: { user: { select: { name: true } }, task: { select: { title: true } } },
                 orderBy: { submittedAt: 'desc' },
                 take: 5
             }),
-            prisma.dailyReport.findMany({
+            prismaClient_1.default.dailyReport.findMany({
                 where: { ...deptFilter },
                 include: { user: { select: { name: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: 5
             }),
-            prisma.activityLog.findMany({
+            prismaClient_1.default.activityLog.findMany({
                 include: { user: { select: { name: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: 8
             }),
-            prisma.department.findMany(),
-            prisma.user.findMany({
+            prismaClient_1.default.user.findMany({
                 where: { role: { in: ['DevEmployee', 'MediaEmployee'] }, ...deptFilter },
                 include: { department: true }
             }),
-            prisma.task.findMany({
+            prismaClient_1.default.task.findMany({
                 where: { ...tasksQuery.where, deadline: { gte: new Date() }, status: { not: 'Approved' } },
                 orderBy: { deadline: 'asc' },
                 take: 5,
                 include: { assignedTo: { select: { name: true } } }
-            })
+            }),
+            prismaClient_1.default.task.groupBy({ by: ['departmentId', 'status'], _count: { id: true } }),
+            prismaClient_1.default.task.groupBy({ by: ['departmentId'], where: { deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
+            prismaClient_1.default.dailyReport.groupBy({ by: ['departmentId'], _count: { id: true } }),
+            prismaClient_1.default.dailyReport.groupBy({ by: ['departmentId'], where: { reportDate: { gte: today, lt: tomorrow } }, _count: { id: true } }),
+            prismaClient_1.default.task.groupBy({ by: ['assignedToId', 'status'], _count: { id: true } }),
+            prismaClient_1.default.task.groupBy({ by: ['assignedToId'], where: { deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
+            prismaClient_1.default.dailyReport.groupBy({ by: ['userId'], _count: { id: true } })
         ]);
+        const totalTasks = taskStatusCounts.reduce((acc, curr) => acc + curr._count.id, 0);
+        const pendingTasks = taskStatusCounts.find(s => s.status === 'Pending')?._count.id || 0;
+        const inProgressTasks = taskStatusCounts.find(s => s.status === 'In Progress')?._count.id || 0;
+        const submittedTasks = taskStatusCounts.find(s => s.status === 'Submitted')?._count.id || 0;
+        const approvedTasks = taskStatusCounts.find(s => s.status === 'Approved')?._count.id || 0;
+        const rejectedTasks = taskStatusCounts.find(s => s.status === 'Rejected')?._count.id || 0;
         const inactiveEmployees = totalEmployees - activeEmployees;
-        // Follow-up queries dependent on earlier results
+        // Fast follow-up queries
         const [developmentTeamCount, mediaTeamCount] = await Promise.all([
-            devDept ? prisma.user.count({ where: { departmentId: devDept.id } }) : Promise.resolve(0),
-            mediaDept ? prisma.user.count({ where: { departmentId: mediaDept.id } }) : Promise.resolve(0)
+            devDept ? prismaClient_1.default.user.count({ where: { departmentId: devDept.id } }) : Promise.resolve(0),
+            mediaDept ? prismaClient_1.default.user.count({ where: { departmentId: mediaDept.id } }) : Promise.resolve(0)
         ]);
         const missingReportsToday = Math.max(0, expectedSubmitters - todayReports);
         const recentActivityLogs = realActivityLogs.map(log => ({
@@ -102,35 +112,18 @@ const getAdminDashboard = async (req, res) => {
             message: log.description,
             date: log.createdAt
         }));
-        const departmentWiseTaskStats = await Promise.all(departments.map(async (dept) => {
-            const [total, approved, overdue] = await Promise.all([
-                prisma.task.count({ where: { departmentId: dept.id } }),
-                prisma.task.count({ where: { departmentId: dept.id, status: 'Approved' } }),
-                prisma.task.count({ where: { departmentId: dept.id, deadline: { lt: new Date() }, status: { not: 'Approved' } } })
-            ]);
+        const departmentWiseTaskStats = departments.map(dept => {
+            const stats = departmentWiseTaskStatsRaw.filter(g => g.departmentId === dept.id);
+            const overdueStats = departmentWiseOverdueRaw.find(g => g.departmentId === dept.id);
+            const total = stats.reduce((sum, g) => sum + g._count.id, 0);
+            const approved = stats.find(g => g.status === 'Approved')?._count.id || 0;
+            const overdue = overdueStats?._count.id || 0;
             return { name: dept.name, total, approved, overdue };
-        }));
-        const departmentWiseReportStats = await Promise.all(departments.map(async (dept) => {
-            const [total, todayCount] = await Promise.all([
-                prisma.dailyReport.count({ where: { departmentId: dept.id } }),
-                prisma.dailyReport.count({ where: { departmentId: dept.id, reportDate: { gte: today, lt: tomorrow } } })
-            ]);
+        });
+        const departmentWiseReportStats = departments.map(dept => {
+            const total = departmentWiseReportStatsRaw.find(g => g.departmentId === dept.id)?._count.id || 0;
+            const todayCount = departmentWiseReportTodayRaw.find(g => g.departmentId === dept.id)?._count.id || 0;
             return { name: dept.name, total, today: todayCount };
-        }));
-        const taskGroups = await prisma.task.groupBy({
-            by: ['assignedToId', 'status'],
-            _count: { id: true },
-            where: { assignedToId: { in: employees.map(e => e.id) } }
-        });
-        const overdueGroups = await prisma.task.groupBy({
-            by: ['assignedToId'],
-            where: { assignedToId: { in: employees.map(e => e.id) }, deadline: { lt: new Date() }, status: { not: 'Approved' } },
-            _count: { id: true },
-        });
-        const reportGroups = await prisma.dailyReport.groupBy({
-            by: ['userId'],
-            where: { userId: { in: employees.map(e => e.id) } },
-            _count: { id: true },
         });
         const employeePerformanceSummary = employees.map(emp => {
             const empTaskGroups = taskGroups.filter(g => g.assignedToId === emp.id);
@@ -175,50 +168,54 @@ const getManagerDashboard = async (req, res) => {
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        const [teamEmployees, activeTeamEmployees, totalTeamTasks, pendingTeamTasks, inProgressTeamTasks, submittedTeamTasks, approvedTeamTasks, rejectedTeamTasks, overdueTeamTasks, overdueTeamTaskList, todayTeamReports, expectedSubmitters, reportsNeedingCorrection, pendingReviewSubmissions, recentTeamSubmissions, recentTeamReports, realActivityLogs, employees, upcomingTeamDeadlines] = await Promise.all([
-            prisma.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] } } }),
-            prisma.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
-            prisma.task.count({ where: deptFilter }),
-            prisma.task.count({ where: { ...deptFilter, status: 'Pending' } }),
-            prisma.task.count({ where: { ...deptFilter, status: 'In Progress' } }),
-            prisma.task.count({ where: { ...deptFilter, status: 'Submitted' } }),
-            prisma.task.count({ where: { ...deptFilter, status: 'Approved' } }),
-            prisma.task.count({ where: { ...deptFilter, status: 'Rejected' } }),
-            prisma.task.count({ where: { ...deptFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
-            prisma.task.findMany({
+        const [teamEmployees, activeTeamEmployees, todayTeamReports, expectedSubmitters, reportsNeedingCorrection, employees, taskStatusCounts, overdueTeamTasks, overdueTeamTaskList, pendingReviewSubmissions, recentTeamSubmissions, recentTeamReports, realActivityLogs, upcomingTeamDeadlines, teamTaskGroups, teamOverdueGroups, teamReportGroups] = await Promise.all([
+            prismaClient_1.default.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] } } }),
+            prismaClient_1.default.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
+            prismaClient_1.default.dailyReport.count({ where: { ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
+            prismaClient_1.default.user.count({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
+            prismaClient_1.default.dailyReport.count({ where: { ...deptFilter, status: 'Needs Correction' } }),
+            prismaClient_1.default.user.findMany({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] } } }),
+            prismaClient_1.default.task.groupBy({ by: ['status'], where: deptFilter, _count: { id: true } }),
+            prismaClient_1.default.task.count({ where: { ...deptFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
+            prismaClient_1.default.task.findMany({
                 where: { ...deptFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } },
                 include: { assignedTo: { select: { name: true } } },
                 take: 5
             }),
-            prisma.dailyReport.count({ where: { ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
-            prisma.user.count({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
-            prisma.dailyReport.count({ where: { ...deptFilter, status: 'Needs Correction' } }),
-            prisma.taskSubmission.count({ where: { task: deptFilter, reviewStatus: 'Pending Review' } }),
-            prisma.taskSubmission.findMany({
+            prismaClient_1.default.taskSubmission.count({ where: { task: deptFilter, reviewStatus: 'Pending Review' } }),
+            prismaClient_1.default.taskSubmission.findMany({
                 where: { task: deptFilter },
                 include: { user: { select: { name: true } }, task: { select: { title: true } } },
                 orderBy: { submittedAt: 'desc' },
                 take: 5
             }),
-            prisma.dailyReport.findMany({
+            prismaClient_1.default.dailyReport.findMany({
                 where: deptFilter,
                 include: { user: { select: { name: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: 5
             }),
-            prisma.activityLog.findMany({
+            prismaClient_1.default.activityLog.findMany({
                 include: { user: { select: { name: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: 8
             }),
-            prisma.user.findMany({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] } } }),
-            prisma.task.findMany({
+            prismaClient_1.default.task.findMany({
                 where: { ...deptFilter, deadline: { gte: new Date() }, status: { not: 'Approved' } },
                 orderBy: { deadline: 'asc' },
                 take: 5,
                 include: { assignedTo: { select: { name: true } } }
-            })
+            }),
+            prismaClient_1.default.task.groupBy({ by: ['assignedToId', 'status'], _count: { id: true } }),
+            prismaClient_1.default.task.groupBy({ by: ['assignedToId'], where: { deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
+            prismaClient_1.default.dailyReport.groupBy({ by: ['userId'], _count: { id: true } })
         ]);
+        const totalTeamTasks = taskStatusCounts.reduce((acc, curr) => acc + curr._count.id, 0);
+        const pendingTeamTasks = taskStatusCounts.find(s => s.status === 'Pending')?._count.id || 0;
+        const inProgressTeamTasks = taskStatusCounts.find(s => s.status === 'In Progress')?._count.id || 0;
+        const submittedTeamTasks = taskStatusCounts.find(s => s.status === 'Submitted')?._count.id || 0;
+        const approvedTeamTasks = taskStatusCounts.find(s => s.status === 'Approved')?._count.id || 0;
+        const rejectedTeamTasks = taskStatusCounts.find(s => s.status === 'Rejected')?._count.id || 0;
         const inactiveTeamEmployees = teamEmployees - activeTeamEmployees;
         const missingTeamReportsToday = Math.max(0, expectedSubmitters - todayTeamReports);
         const recentActivityLogs = realActivityLogs.map(log => ({
@@ -226,21 +223,6 @@ const getManagerDashboard = async (req, res) => {
             message: log.description,
             date: log.createdAt
         }));
-        const teamTaskGroups = await prisma.task.groupBy({
-            by: ['assignedToId', 'status'],
-            _count: { id: true },
-            where: { assignedToId: { in: employees.map(e => e.id) } }
-        });
-        const teamOverdueGroups = await prisma.task.groupBy({
-            by: ['assignedToId'],
-            where: { assignedToId: { in: employees.map(e => e.id) }, deadline: { lt: new Date() }, status: { not: 'Approved' } },
-            _count: { id: true },
-        });
-        const teamReportGroups = await prisma.dailyReport.groupBy({
-            by: ['userId'],
-            where: { userId: { in: employees.map(e => e.id) } },
-            _count: { id: true },
-        });
         const teamPerformanceSummary = employees.map(emp => {
             const empTaskGroups = teamTaskGroups.filter(g => g.assignedToId === emp.id);
             const empTotalTasks = empTaskGroups.reduce((sum, g) => sum + g._count.id, 0);
@@ -286,29 +268,32 @@ const getEmployeeDashboard = async (req, res) => {
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        const [myTotalTasks, myPendingTasks, myInProgressTasks, mySubmittedTasks, myApprovedTasks, myRejectedTasks, myOverdueTasks, todayReport, myRecentTasks, myUpcomingDeadlines, myRejectedTasksWithFeedback, myRecentDailyReports, user] = await Promise.all([
-            prisma.task.count({ where: { assignedToId: userId } }),
-            prisma.task.count({ where: { assignedToId: userId, status: 'Pending' } }),
-            prisma.task.count({ where: { assignedToId: userId, status: 'In Progress' } }),
-            prisma.task.count({ where: { assignedToId: userId, status: 'Submitted' } }),
-            prisma.task.count({ where: { assignedToId: userId, status: 'Approved' } }),
-            prisma.task.count({ where: { assignedToId: userId, status: 'Rejected' } }),
-            prisma.task.count({ where: { assignedToId: userId, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
-            prisma.dailyReport.findFirst({ where: { userId, reportDate: { gte: today, lt: tomorrow } } }),
-            prisma.task.findMany({ where: { assignedToId: userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
-            prisma.task.findMany({ where: { assignedToId: userId, deadline: { gte: new Date() }, status: { not: 'Approved' } }, orderBy: { deadline: 'asc' }, take: 5 }),
-            prisma.taskSubmission.findMany({ where: { userId, reviewStatus: 'Rejected' }, include: { task: true }, orderBy: { reviewedAt: 'desc' }, take: 3 }),
-            prisma.dailyReport.findMany({ where: { userId }, orderBy: { reportDate: 'desc' }, take: 5 }),
-            prisma.user.findUnique({ where: { id: userId } })
+        const taskStatusCounts = await prismaClient_1.default.task.groupBy({
+            by: ['status'],
+            where: { assignedToId: userId },
+            _count: { id: true }
+        });
+        const myTotalTasks = taskStatusCounts.reduce((acc, curr) => acc + curr._count.id, 0);
+        const myPendingTasks = taskStatusCounts.find(s => s.status === 'Pending')?._count.id || 0;
+        const myInProgressTasks = taskStatusCounts.find(s => s.status === 'In Progress')?._count.id || 0;
+        const mySubmittedTasks = taskStatusCounts.find(s => s.status === 'Submitted')?._count.id || 0;
+        const myApprovedTasks = taskStatusCounts.find(s => s.status === 'Approved')?._count.id || 0;
+        const myRejectedTasks = taskStatusCounts.find(s => s.status === 'Rejected')?._count.id || 0;
+        const [myOverdueTasks, todayReport, myRecentTasks, myUpcomingDeadlines, myRejectedTasksWithFeedback, myRecentDailyReports, user] = await Promise.all([
+            prismaClient_1.default.task.count({ where: { assignedToId: userId, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
+            prismaClient_1.default.dailyReport.findFirst({ where: { userId, reportDate: { gte: today, lt: tomorrow } } }),
+            prismaClient_1.default.task.findMany({ where: { assignedToId: userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
+            prismaClient_1.default.task.findMany({ where: { assignedToId: userId, deadline: { gte: new Date() }, status: { not: 'Approved' } }, orderBy: { deadline: 'asc' }, take: 5 }),
+            prismaClient_1.default.taskSubmission.findMany({ where: { userId, reviewStatus: 'Rejected' }, include: { task: true }, orderBy: { reviewedAt: 'desc' }, take: 3 }),
+            prismaClient_1.default.dailyReport.findMany({ where: { userId }, orderBy: { reportDate: 'desc' }, take: 5 }),
+            prismaClient_1.default.user.findUnique({ where: { id: userId } })
         ]);
         const todayReportStatus = todayReport ? todayReport.status : 'Missing';
         const latestManagerFeedback = todayReport?.managerFeedback || null;
         const myTaskCompletionRate = myTotalTasks > 0 ? ((myApprovedTasks / myTotalTasks) * 100).toFixed(1) : 0;
         let myReportSubmissionRate = 0;
         if (user) {
-            const daysSinceJoined = Math.max(1, Math.floor((new Date().getTime() - user.createdAt.getTime()) / (1000 * 3600 * 24)));
-            const totalReports = await prisma.dailyReport.count({ where: { userId } });
-            myReportSubmissionRate = Math.min(100, (totalReports / (daysSinceJoined * (5 / 7))) * 100).toFixed(1);
+            myReportSubmissionRate = Number(await (0, reportUtils_1.calculateMonthlyReportRate)(userId));
         }
         res.json({
             myTotalTasks, myPendingTasks, myInProgressTasks, mySubmittedTasks, myApprovedTasks, myRejectedTasks, myOverdueTasks,
@@ -330,24 +315,28 @@ const getHrDashboard = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
         const [totalEmployees, activeEmployees, departments, expectedSubmitters, todayReports, totalTasks, approvedTasks, recentReports] = await Promise.all([
-            prisma.user.count(),
-            prisma.user.count({ where: { isActive: true } }),
-            prisma.department.findMany(),
-            prisma.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
-            prisma.dailyReport.count({ where: { reportDate: { gte: today, lt: tomorrow } } }),
-            prisma.task.count(),
-            prisma.task.count({ where: { status: 'Approved' } }),
-            prisma.dailyReport.findMany({
+            prismaClient_1.default.user.count(),
+            prismaClient_1.default.user.count({ where: { isActive: true } }),
+            prismaClient_1.default.department.findMany(),
+            prismaClient_1.default.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
+            prismaClient_1.default.dailyReport.count({ where: { reportDate: { gte: today, lt: tomorrow } } }),
+            prismaClient_1.default.task.count(),
+            prismaClient_1.default.task.count({ where: { status: 'Approved' } }),
+            prismaClient_1.default.dailyReport.findMany({
                 include: { user: { select: { name: true } }, department: { select: { name: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: 10
             })
         ]);
         const inactiveEmployees = totalEmployees - activeEmployees;
-        const departmentWiseEmployees = await Promise.all(departments.map(async (dept) => ({
+        const departmentUserCountsRaw = await prismaClient_1.default.user.groupBy({
+            by: ['departmentId'],
+            _count: { id: true }
+        });
+        const departmentWiseEmployees = departments.map(dept => ({
             name: dept.name,
-            count: await prisma.user.count({ where: { departmentId: dept.id } })
-        })));
+            count: departmentUserCountsRaw.find(g => g.departmentId === dept.id)?._count.id || 0
+        }));
         const dailyReportCompliance = expectedSubmitters > 0 ? ((todayReports / expectedSubmitters) * 100).toFixed(1) : 0;
         const taskCompletionOverview = totalTasks > 0 ? ((approvedTasks / totalTasks) * 100).toFixed(1) : 0;
         res.json({

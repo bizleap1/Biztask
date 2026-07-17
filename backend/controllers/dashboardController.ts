@@ -54,8 +54,8 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
       taskGroups, overdueGroups, reportGroups
     ] = await Promise.all([
       prisma.department.findMany(),
-      prisma.user.count({ where: { ...deptFilter } }),
-      prisma.user.count({ where: { isActive: true, ...deptFilter } }),
+      prisma.user.count({ where: { role: { not: 'SuperAdmin' }, ...deptFilter } }),
+      prisma.user.count({ where: { isActive: true, role: { not: 'SuperAdmin' }, ...deptFilter } }),
       prisma.department.findUnique({ where: { name: 'Development' } }),
       prisma.department.findUnique({ where: { name: 'Media' } }),
       prisma.user.count({ where: { role: { in: ['Manager', 'SuperAdmin'] } } }),

@@ -14,11 +14,12 @@ router.get('/my', authMiddleware_1.protect, taskController_1.getMyTasks);
 router.get('/:id', authMiddleware_1.protect, taskController_1.getTaskById);
 router.patch('/:id/status', authMiddleware_1.protect, taskController_1.updateTaskStatus);
 router.post('/:id/submit', authMiddleware_1.protect, submissionController_1.submitTask);
+router.delete('/bulk', authMiddleware_1.protect, taskController_1.bulkDeleteTasks);
 // Routes for SuperAdmin and Manager
 router.route('/')
     .get(authMiddleware_1.protect, taskController_1.getTasks)
-    .post(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), taskController_1.createTask);
+    .post(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager', 'DevEmployee', 'MediaEmployee'), taskController_1.createTask);
 router.route('/:id')
-    .put(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), taskController_1.updateTask)
-    .delete(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin'), taskController_1.deleteTask);
+    .put(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager', 'DevEmployee', 'MediaEmployee'), taskController_1.updateTask)
+    .delete(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager', 'DevEmployee', 'MediaEmployee'), taskController_1.deleteTask);
 exports.default = router;

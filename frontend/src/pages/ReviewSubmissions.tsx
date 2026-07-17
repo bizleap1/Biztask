@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, Check, X, MessageSquare } from 'lucide-react';
+import { Eye, Check, X, MessageSquare, Trash2 } from 'lucide-react';
 import { submissionService } from '../services/submissionService';
 
 export default function ReviewSubmissions() {
@@ -10,6 +10,7 @@ export default function ReviewSubmissions() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [activeSubmissionId, setActiveSubmissionId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const fetchSubmissions = async () => {
     try {
@@ -34,6 +35,51 @@ export default function ReviewSubmissions() {
       fetchSubmissions();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to approve');
+    }
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(submissions.map(s => s.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectCard = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} submissions?`)) return;
+    try {
+      await submissionService.bulkDeleteSubmissions(selectedIds);
+      setSelectedIds([]);
+      fetchSubmissions();
+    } catch (error) {
+      console.error('Failed to delete submissions', error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to delete all currently visible submissions?')) return;
+    const ids = submissions.map(s => s.id);
+    try {
+      await submissionService.bulkDeleteSubmissions(ids);
+      setSelectedIds([]);
+      fetchSubmissions();
+    } catch (error) {
+      console.error('Failed to clear submissions', error);
+    }
+  };
+
+  const handleDeleteSingle = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this submission?')) return;
+    try {
+      await submissionService.deleteSubmission(id);
+      fetchSubmissions();
+    } catch (error) {
+      console.error('Failed to delete submission', error);
     }
   };
 
@@ -62,6 +108,34 @@ export default function ReviewSubmissions() {
         <p className="text-gray-500 text-sm mt-1">Review task proofs submitted by employees.</p>
       </div>
 
+      {/* Bulk Actions */}
+      {(selectedIds.length > 0 || submissions.length > 0) && (
+        <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2">
+            <input type="checkbox" checked={selectedIds.length === submissions.length && submissions.length > 0} onChange={handleSelectAll} className="rounded border-gray-300 w-4 h-4" id="selectAll" />
+            <label htmlFor="selectAll" className="text-sm font-medium text-gray-700 cursor-pointer">Select All</label>
+          </div>
+          <div className="flex gap-3">
+            {selectedIds.length > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center gap-2"
+              >
+                <Trash2 size={16} /> Delete Selected ({selectedIds.length})
+              </button>
+            )}
+            {submissions.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
+              >
+                <Trash2 size={16} /> Clear All
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-10 text-gray-500">Loading submissions...</div>
       ) : submissions.length === 0 ? (
@@ -74,9 +148,14 @@ export default function ReviewSubmissions() {
             <div key={sub.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
               <div className="p-5 flex-1">
                 <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 line-clamp-1">{sub.task.title}</h3>
-                    <p className="text-sm text-gray-500">{sub.task.department.name} Task • Submitted by {sub.user.name}</p>
+                  <div className="flex gap-3 items-start">
+                    <div className="mt-1">
+                      <input type="checkbox" checked={selectedIds.includes(sub.id)} onChange={() => handleSelectCard(sub.id)} className="rounded border-gray-300 w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 line-clamp-1">{sub.task.title}</h3>
+                      <p className="text-sm text-gray-500">{sub.task.department.name} Task • Submitted by {sub.user.name}</p>
+                    </div>
                   </div>
                   <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap">
                     Pending Review
@@ -119,6 +198,13 @@ export default function ReviewSubmissions() {
                 <p className="text-xs text-gray-400">Submitted at: {new Date(sub.submittedAt).toLocaleString()}</p>
               </div>
               <div className="border-t border-gray-100 p-4 bg-gray-50 flex gap-3">
+                <button 
+                  onClick={() => handleDeleteSingle(sub.id)}
+                  className="flex-none flex justify-center items-center p-2 bg-white border border-gray-200 text-gray-400 rounded-lg hover:text-red-600 hover:border-red-200 transition-colors"
+                  title="Delete Submission"
+                >
+                  <Trash2 size={18} />
+                </button>
                 <button 
                   onClick={() => openRejectModal(sub.id)}
                   className="flex-1 flex justify-center items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"

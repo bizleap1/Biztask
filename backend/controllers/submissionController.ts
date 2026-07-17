@@ -206,7 +206,7 @@ export const getPendingSubmissions = async (req: AuthRequest, res: Response) => 
   try {
     const { role, departmentId, id } = req.user!;
     
-    let whereClause: any = { reviewStatus: 'Pending Review' };
+    let whereClause: any = { reviewStatus: 'Pending Review', isDeleted: false };
     
     if (role === 'Manager') {
       // Manager sees all pending submissions
@@ -226,6 +226,45 @@ export const getPendingSubmissions = async (req: AuthRequest, res: Response) => 
     res.json(submissions);
   } catch (error) {
     console.error('Get Submissions Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Delete submission
+// @route   DELETE /api/submissions/:id
+// @access  Private
+export const deleteSubmission = async (req: AuthRequest, res: Response) => {
+  try {
+    const sub = await prisma.taskSubmission.findUnique({ where: { id: Number(req.params.id) } });
+    if (!sub) return res.status(404).json({ message: 'Submission not found' });
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager' && sub.userId !== req.user!.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    await prisma.taskSubmission.update({ where: { id: Number(req.params.id) }, data: { isDeleted: true } });
+    res.json({ message: 'Submission deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Bulk delete submissions
+// @route   DELETE /api/submissions/bulk
+// @access  Private
+export const bulkDeleteSubmissions = async (req: AuthRequest, res: Response) => {
+  try {
+    const { ids } = req.body;
+    let whereClause: any = {};
+    if (ids && Array.isArray(ids) && ids.length > 0) {
+      whereClause.id = { in: ids };
+    }
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+      whereClause.userId = req.user!.id;
+    }
+    const deleted = await prisma.taskSubmission.updateMany({ where: whereClause, data: { isDeleted: true } });
+    res.json({ message: `${deleted.count} submissions deleted successfully` });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Server error' });
   }
 };

@@ -4,6 +4,10 @@ import { dashboardService } from '../../services/dashboardService';
 import { clearSystemData } from '../../services/api';
 import { Users, FileText, CheckCircle, AlertTriangle, Filter, LayoutDashboard, Activity } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
+import { taskService } from '../../services/taskService';
+import { userService } from '../../services/userService';
+import { dailyReportService } from '../../services/dailyReportService';
+import { X } from 'lucide-react';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -11,6 +15,52 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ startDate: '', endDate: '', department: '' });
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal State
+  const [modalType, setModalType] = useState<'employees' | 'tasks' | 'overdue' | 'missingReports' | null>(null);
+  const [modalTitle, setModalTitle] = useState<string>('');
+  const [modalData, setModalData] = useState<any[]>([]);
+  const [loadingModal, setLoadingModal] = useState(false);
+
+  const openModal = async (type: 'employees' | 'tasks' | 'overdue' | 'missingReports', title?: string, filter?: { status?: string, department?: string, isOverdue?: boolean }) => {
+    setModalType(type);
+    setModalTitle(title || '');
+    setLoadingModal(true);
+    setModalData([]);
+    try {
+      if (type === 'employees') {
+        const emps = await userService.getUsers();
+        setModalData(emps.filter((e: any) => e.isActive && e.role !== 'SuperAdmin'));
+      } else if (type === 'tasks' || type === 'overdue') {
+        const tasks = await taskService.getTasks();
+        let filtered = tasks;
+        if (type === 'overdue' || filter?.isOverdue) {
+          filtered = filtered.filter((t: any) => t.status !== 'Approved' && new Date(t.deadline) < new Date());
+        }
+        if (filter?.status) {
+          filtered = filtered.filter((t: any) => t.status === filter.status);
+        }
+        if (filter?.department) {
+          filtered = filtered.filter((t: any) => t.department?.name === filter.department);
+        }
+        setModalData(filtered);
+      } else if (type === 'missingReports') {
+        const [emps, reports] = await Promise.all([
+          userService.getUsers(),
+          dailyReportService.getAllReports()
+        ]);
+        const today = new Date().toISOString().split('T')[0];
+        const todayReports = reports.filter((r: any) => new Date(r.reportDate).toISOString().split('T')[0] === today);
+        const reportersToday = new Set(todayReports.map((r: any) => r.userId));
+        const missing = emps.filter((e: any) => e.isActive && (e.role === 'DevEmployee' || e.role === 'MediaEmployee') && !reportersToday.has(e.id));
+        setModalData(missing);
+      }
+    } catch (err) {
+      console.error('Error fetching modal data', err);
+    } finally {
+      setLoadingModal(false);
+    }
+  };
 
   useEffect(() => {
     fetchData(false);
@@ -103,7 +153,7 @@ export default function AdminDashboard() {
 
       {/* Primary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div onClick={() => openModal('employees')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Total Employees</p>
@@ -114,7 +164,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-green-600 mt-3 font-medium">{data.activeEmployees} Active</p>
         </div>
         
-        <div onClick={() => navigate('/tasks')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+        <div onClick={() => openModal('tasks')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Total Tasks</p>
@@ -125,7 +175,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-gray-500 mt-3 font-medium">{data.approvedTasks} Approved</p>
         </div>
 
-        <div onClick={() => navigate('/tasks?status=Overdue')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+        <div onClick={() => openModal('overdue')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Overdue Tasks</p>
@@ -136,7 +186,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-red-500 mt-3 font-medium">Needs attention</p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div onClick={() => openModal('missingReports')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Missing Reports (Today)</p>
@@ -157,7 +207,11 @@ export default function AdminDashboard() {
             {taskStatusData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={taskStatusData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={2} dataKey="value">
+                  <Pie 
+                    data={taskStatusData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={2} dataKey="value"
+                    onClick={(entry: any) => openModal('tasks', `Tasks: ${entry.name}`, { status: entry.name })}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {taskStatusData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                   </Pie>
                   <RechartsTooltip />
@@ -182,9 +236,9 @@ export default function AdminDashboard() {
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} />
                   <RechartsTooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
                   <Legend />
-                  <Bar dataKey="total" name="Total Tasks" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="approved" name="Approved" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="overdue" name="Overdue" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total" name="Total Tasks" fill="#94a3b8" radius={[4, 4, 0, 0]} onClick={(entry: any) => openModal('tasks', `Total Tasks: ${entry.name}`, { department: entry.name })} style={{ cursor: 'pointer' }} />
+                  <Bar dataKey="approved" name="Approved" fill="#10b981" radius={[4, 4, 0, 0]} onClick={(entry: any) => openModal('tasks', `Approved Tasks: ${entry.name}`, { department: entry.name, status: 'Approved' })} style={{ cursor: 'pointer' }} />
+                  <Bar dataKey="overdue" name="Overdue" fill="#ef4444" radius={[4, 4, 0, 0]} onClick={(entry: any) => openModal('tasks', `Overdue Tasks: ${entry.name}`, { department: entry.name, isOverdue: true })} style={{ cursor: 'pointer' }} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -292,6 +346,98 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Details Modal */}
+      {modalType && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-xl">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">
+                {modalTitle || (modalType === 'employees' ? 'Active Employees'
+                  : modalType === 'tasks' ? 'All Tasks'
+                  : modalType === 'overdue' ? 'Overdue Tasks'
+                  : 'Missing Reports (Today)')}
+              </h2>
+              <button 
+                onClick={() => setModalType(null)}
+                className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {loadingModal ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {modalData.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No records found.</p>
+                  ) : (
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-gray-50 text-gray-500">
+                        <tr>
+                          {modalType === 'employees' || modalType === 'missingReports' ? (
+                            <>
+                              <th className="p-3 font-medium rounded-l-lg">Name</th>
+                              <th className="p-3 font-medium">Role</th>
+                              <th className="p-3 font-medium rounded-r-lg">{modalType === 'missingReports' || modalType === 'employees' ? 'Status' : 'Department'}</th>
+                            </>
+                          ) : (
+                            <>
+                              <th className="p-3 font-medium rounded-l-lg">Task Title</th>
+                              <th className="p-3 font-medium">Assignee</th>
+                              <th className="p-3 font-medium">Deadline</th>
+                              <th className="p-3 font-medium rounded-r-lg">Status</th>
+                            </>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {modalData.map((item: any) => (
+                          <tr key={item.id} className="hover:bg-gray-50/50">
+                            {modalType === 'employees' || modalType === 'missingReports' ? (
+                              <>
+                                <td className="p-3 font-medium text-gray-900">{item.name}</td>
+                                <td className="p-3 text-gray-600">{item.role}</td>
+                                <td className="p-3 text-gray-600">
+                                  {modalType === 'missingReports' ? (
+                                    <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700">Not Sent</span>
+                                  ) : modalType === 'employees' ? (
+                                    <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">Active</span>
+                                  ) : (
+                                    item.department?.name || 'N/A'
+                                  )}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="p-3 font-medium text-gray-900 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => navigate(`/tasks/${item.id}`)}>{item.title}</td>
+                                <td className="p-3 text-gray-600">{item.assignedTo?.name || 'Unassigned'}</td>
+                                <td className="p-3 text-gray-600">{new Date(item.deadline).toLocaleDateString()}</td>
+                                <td className="p-3">
+                                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                    item.status === 'Approved' ? 'bg-green-100 text-green-700'
+                                    : item.status === 'Overdue' || new Date(item.deadline) < new Date() ? 'bg-red-100 text-red-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {item.status}
+                                  </span>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

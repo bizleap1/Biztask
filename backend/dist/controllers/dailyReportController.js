@@ -1,10 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteReport = exports.markNeedsCorrection = exports.reviewReport = exports.updateReport = exports.getReportById = exports.getMyReports = exports.getAllReports = exports.submitReport = void 0;
-const client_1 = require("@prisma/client");
+exports.bulkDeleteReports = exports.deleteReport = exports.markNeedsCorrection = exports.reviewReport = exports.updateReport = exports.getReportById = exports.getMyReports = exports.getAllReports = exports.submitReport = void 0;
 const activityLogUtils_1 = require("../utils/activityLogUtils");
 const notificationUtils_1 = require("../utils/notificationUtils");
-const prisma = new client_1.PrismaClient();
+const reportUtils_1 = require("../utils/reportUtils");
+const prismaClient_1 = __importDefault(require("../prismaClient"));
 // @desc    Submit a daily report
 // @route   POST /api/daily-reports
 // @access  Private (Employee)
@@ -20,7 +23,7 @@ const submitReport = async (req, res) => {
         const dateObj = new Date(reportDate);
         const startOfDay = new Date(dateObj.setHours(0, 0, 0, 0));
         const endOfDay = new Date(dateObj.setHours(23, 59, 59, 999));
-        const existingReport = await prisma.dailyReport.findFirst({
+        const existingReport = await prismaClient_1.default.dailyReport.findFirst({
             where: {
                 userId,
                 reportDate: {
@@ -32,7 +35,7 @@ const submitReport = async (req, res) => {
         if (existingReport) {
             return res.status(400).json({ message: 'Daily report already submitted for this date.' });
         }
-        const report = await prisma.dailyReport.create({
+        const report = await prismaClient_1.default.dailyReport.create({
             data: {
                 userId,
                 departmentId,
@@ -54,7 +57,7 @@ const submitReport = async (req, res) => {
             description: `Submitted daily report for ${reportDate}`,
             req
         });
-        const admins = await prisma.user.findMany({
+        const admins = await prismaClient_1.default.user.findMany({
             where: { role: { in: ['SuperAdmin', 'Manager'] } },
             select: { id: true }
         });
@@ -83,7 +86,7 @@ const getAllReports = async (req, res) => {
     try {
         const { employeeId, departmentId, status, startDate, endDate } = req.query;
         const { role, departmentId: userDeptId } = req.user;
-        let whereClause = {};
+        let whereClause = { isDeleted: false };
         // Managers and SuperAdmins can see all departments
         if (departmentId) {
             whereClause.departmentId = Number(departmentId);
@@ -104,7 +107,7 @@ const getAllReports = async (req, res) => {
                 whereClause.reportDate.lte = end;
             }
         }
-        const reports = await prisma.dailyReport.findMany({
+        const reports = await prismaClient_1.default.dailyReport.findMany({
             where: whereClause,
             include: {
                 user: { select: { id: true, name: true, role: true, email: true } },
@@ -113,7 +116,12 @@ const getAllReports = async (req, res) => {
             },
             orderBy: { reportDate: 'desc' }
         });
-        res.json(reports);
+        // Fetch live monthly submission rate for each report's user
+        const reportsWithRates = await Promise.all(reports.map(async (report) => {
+            const rate = await (0, reportUtils_1.calculateMonthlyReportRate)(report.userId);
+            return { ...report, user: { ...report.user, reportSubmissionRate: rate } };
+        }));
+        res.json(reportsWithRates);
     }
     catch (error) {
         console.error(error);
@@ -126,8 +134,8 @@ exports.getAllReports = getAllReports;
 // @access  Private
 const getMyReports = async (req, res) => {
     try {
-        const reports = await prisma.dailyReport.findMany({
-            where: { userId: req.user.id },
+        const reports = await prismaClient_1.default.dailyReport.findMany({
+            where: { userId: req.user.id, isDeleted: false },
             include: {
                 department: { select: { id: true, name: true } },
                 reviewedBy: { select: { id: true, name: true } }
@@ -147,7 +155,7 @@ exports.getMyReports = getMyReports;
 // @access  Private
 const getReportById = async (req, res) => {
     try {
-        const report = await prisma.dailyReport.findUnique({
+        const report = await prismaClient_1.default.dailyReport.findUnique({
             where: { id: Number(req.params.id) },
             include: {
                 user: { select: { id: true, name: true, email: true, role: true, designation: true } },
@@ -177,7 +185,7 @@ exports.getReportById = getReportById;
 const updateReport = async (req, res) => {
     try {
         const reportId = Number(req.params.id);
-        const report = await prisma.dailyReport.findUnique({ where: { id: reportId } });
+        const report = await prismaClient_1.default.dailyReport.findUnique({ where: { id: reportId } });
         if (!report)
             return res.status(404).json({ message: 'Report not found' });
         if (report.userId !== req.user.id)
@@ -185,7 +193,7 @@ const updateReport = async (req, res) => {
         if (report.status === 'Reviewed')
             return res.status(400).json({ message: 'Cannot edit a reviewed report' });
         const { workCompleted, pendingWork, blockers, tomorrowPlan, attachments, taskIds } = req.body;
-        const updated = await prisma.dailyReport.update({
+        const updated = await prismaClient_1.default.dailyReport.update({
             where: { id: reportId },
             data: {
                 workCompleted,
@@ -212,7 +220,7 @@ const reviewReport = async (req, res) => {
     try {
         const reportId = Number(req.params.id);
         const { managerFeedback } = req.body;
-        const updated = await prisma.dailyReport.update({
+        const updated = await prismaClient_1.default.dailyReport.update({
             where: { id: reportId },
             data: {
                 status: 'Reviewed',
@@ -255,7 +263,7 @@ const markNeedsCorrection = async (req, res) => {
         if (!managerFeedback) {
             return res.status(400).json({ message: 'Feedback is required for corrections' });
         }
-        const updated = await prisma.dailyReport.update({
+        const updated = await prismaClient_1.default.dailyReport.update({
             where: { id: reportId },
             data: {
                 status: 'Needs Correction',
@@ -290,10 +298,16 @@ const markNeedsCorrection = async (req, res) => {
 exports.markNeedsCorrection = markNeedsCorrection;
 // @desc    Delete/Archive report
 // @route   DELETE /api/daily-reports/:id
-// @access  Private (SuperAdmin)
+// @access  Private
 const deleteReport = async (req, res) => {
     try {
-        await prisma.dailyReport.delete({ where: { id: Number(req.params.id) } });
+        const report = await prismaClient_1.default.dailyReport.findUnique({ where: { id: Number(req.params.id) } });
+        if (!report)
+            return res.status(404).json({ message: 'Report not found' });
+        if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Manager' && report.userId !== req.user.id) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        await prismaClient_1.default.dailyReport.update({ where: { id: Number(req.params.id) }, data: { isDeleted: true } });
         res.json({ message: 'Report deleted successfully' });
     }
     catch (error) {
@@ -302,3 +316,25 @@ const deleteReport = async (req, res) => {
     }
 };
 exports.deleteReport = deleteReport;
+// @desc    Bulk delete reports
+// @route   DELETE /api/daily-reports/bulk
+// @access  Private
+const bulkDeleteReports = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        let whereClause = {};
+        if (ids && Array.isArray(ids) && ids.length > 0) {
+            whereClause.id = { in: ids };
+        }
+        if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Manager') {
+            whereClause.userId = req.user.id;
+        }
+        const deleted = await prismaClient_1.default.dailyReport.updateMany({ where: whereClause, data: { isDeleted: true } });
+        res.json({ message: `${deleted.count} reports deleted successfully` });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.bulkDeleteReports = bulkDeleteReports;

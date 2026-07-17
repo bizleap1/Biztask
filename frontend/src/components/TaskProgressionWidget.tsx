@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { taskService } from '../services/taskService';
-import { CheckCircle, Clock, FileText, AlertTriangle, Activity } from 'lucide-react';
+import { CheckCircle, Clock, FileText, AlertTriangle, Activity, Trash2 } from 'lucide-react';
 
 export default function TaskProgressionWidget() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -16,6 +16,18 @@ export default function TaskProgressionWidget() {
       console.error('Error fetching tasks', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this task?')) {
+      try {
+        await taskService.deleteTask(id);
+        setTasks(tasks.filter(t => t.id !== id));
+      } catch (err) {
+        console.error('Error deleting task', err);
+        alert('Failed to delete task');
+      }
     }
   };
 
@@ -60,9 +72,18 @@ export default function TaskProgressionWidget() {
                   <h3 className="font-medium text-sm text-gray-900 truncate">{task.title}</h3>
                   <p className="text-xs text-gray-500 truncate">To: {task.assignedTo?.name || 'Unassigned'}</p>
                 </div>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 whitespace-nowrap ${task.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                  <Icon size={10} /> {task.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 whitespace-nowrap ${task.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                    <Icon size={10} /> {task.status}
+                  </span>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
+                    className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                    title="Delete Task"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1">
                 <div className={`h-1.5 rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${progress}%` }}></div>

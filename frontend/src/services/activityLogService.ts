@@ -8,5 +8,13 @@ export const activityLogService = {
   getMyActivityLogs: async () => {
     const response = await api.get('/activity-logs/my');
     return response.data;
+  },
+  deleteActivityLog: async (id: number) => {
+    const response = await api.delete(`/activity-logs/${id}`);
+    return response.data;
+  },
+  bulkDeleteActivityLogs: async (ids: number[]) => {
+    const response = await api.delete('/activity-logs/bulk', { data: { ids } });
+    return response.data;
   }
 };

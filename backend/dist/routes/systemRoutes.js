@@ -10,4 +10,6 @@ const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const router = express_1.default.Router();
 // Only SuperAdmin can clear all data
 router.delete('/clear-data', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin'), systemController_1.clearAllData);
+// SuperAdmin can flush old logs/notifications
+router.delete('/flush-data', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin'), systemController_1.flushOldData);
 exports.default = router;

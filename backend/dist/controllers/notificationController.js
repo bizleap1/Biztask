@@ -1,9 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkDeadlines = exports.deleteNotification = exports.markAllAsRead = exports.markAsRead = exports.getUnreadCount = exports.getNotifications = void 0;
-const client_1 = require("@prisma/client");
 const notificationUtils_1 = require("../utils/notificationUtils");
-const prisma = new client_1.PrismaClient();
+const prismaClient_1 = __importDefault(require("../prismaClient"));
 // @desc    Get notifications for logged-in user
 // @route   GET /api/notifications
 // @access  Private
@@ -32,13 +34,13 @@ const getNotifications = async (req, res) => {
         const limitNumber = parseInt(limit, 10);
         const skip = (pageNumber - 1) * limitNumber;
         const [notifications, total] = await Promise.all([
-            prisma.notification.findMany({
+            prismaClient_1.default.notification.findMany({
                 where: whereClause,
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: limitNumber
             }),
-            prisma.notification.count({ where: whereClause })
+            prismaClient_1.default.notification.count({ where: whereClause })
         ]);
         res.json({
             notifications,
@@ -58,7 +60,7 @@ exports.getNotifications = getNotifications;
 // @access  Private
 const getUnreadCount = async (req, res) => {
     try {
-        const count = await prisma.notification.count({
+        const count = await prismaClient_1.default.notification.count({
             where: { userId: req.user.id, isRead: false }
         });
         res.json({ count });
@@ -75,12 +77,12 @@ exports.getUnreadCount = getUnreadCount;
 const markAsRead = async (req, res) => {
     try {
         const notificationId = Number(req.params.id);
-        const notification = await prisma.notification.findUnique({ where: { id: notificationId } });
+        const notification = await prismaClient_1.default.notification.findUnique({ where: { id: notificationId } });
         if (!notification)
             return res.status(404).json({ message: 'Notification not found' });
         if (notification.userId !== req.user.id)
             return res.status(403).json({ message: 'Forbidden' });
-        const updated = await prisma.notification.update({
+        const updated = await prismaClient_1.default.notification.update({
             where: { id: notificationId },
             data: { isRead: true }
         });
@@ -97,7 +99,7 @@ exports.markAsRead = markAsRead;
 // @access  Private
 const markAllAsRead = async (req, res) => {
     try {
-        await prisma.notification.updateMany({
+        await prismaClient_1.default.notification.updateMany({
             where: { userId: req.user.id, isRead: false },
             data: { isRead: true }
         });
@@ -115,12 +117,12 @@ exports.markAllAsRead = markAllAsRead;
 const deleteNotification = async (req, res) => {
     try {
         const notificationId = Number(req.params.id);
-        const notification = await prisma.notification.findUnique({ where: { id: notificationId } });
+        const notification = await prismaClient_1.default.notification.findUnique({ where: { id: notificationId } });
         if (!notification)
             return res.status(404).json({ message: 'Notification not found' });
         if (notification.userId !== req.user.id)
             return res.status(403).json({ message: 'Forbidden' });
-        await prisma.notification.delete({ where: { id: notificationId } });
+        await prismaClient_1.default.notification.delete({ where: { id: notificationId } });
         res.json({ message: 'Notification deleted' });
     }
     catch (error) {
@@ -137,7 +139,7 @@ const checkDeadlines = async (req, res) => {
         const now = new Date();
         const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
         // 1. Approaching deadlines
-        const approachingTasks = await prisma.task.findMany({
+        const approachingTasks = await prismaClient_1.default.task.findMany({
             where: {
                 deadline: { gt: now, lte: next24h },
                 status: { notIn: ['Approved', 'Completed'] },
@@ -146,7 +148,7 @@ const checkDeadlines = async (req, res) => {
         });
         for (const task of approachingTasks) {
             // Check if we already notified for approaching within the last 24h
-            const existing = await prisma.notification.findFirst({
+            const existing = await prismaClient_1.default.notification.findFirst({
                 where: {
                     userId: task.assignedToId,
                     entityId: task.id,
@@ -166,7 +168,7 @@ const checkDeadlines = async (req, res) => {
             }
         }
         // 2. Overdue tasks
-        const overdueTasks = await prisma.task.findMany({
+        const overdueTasks = await prismaClient_1.default.task.findMany({
             where: {
                 deadline: { lt: now },
                 status: { notIn: ['Approved', 'Completed'] },
@@ -175,7 +177,7 @@ const checkDeadlines = async (req, res) => {
         });
         for (const task of overdueTasks) {
             // Check if we already notified for overdue within the last 24h
-            const existing = await prisma.notification.findFirst({
+            const existing = await prismaClient_1.default.notification.findFirst({
                 where: {
                     userId: task.assignedToId,
                     entityId: task.id,

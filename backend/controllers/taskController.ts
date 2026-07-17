@@ -10,7 +10,7 @@ import prisma from '../prismaClient';
 // @access  Private/SuperAdmin, Manager
 export const createTask = async (req: AuthRequest, res: Response) => {
   try {
-    const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType } = req.body;
+    const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment } = req.body;
 
     // Validate assigned employee belongs to department
     if (assignedToId) {
@@ -33,6 +33,13 @@ export const createTask = async (req: AuthRequest, res: Response) => {
         proofRequired: proofRequired ?? true,
         proofType,
         status: 'Pending',
+        clientName,
+        clientDetails,
+        driveLink,
+        socialMediaPlatform,
+        postType,
+        githubRepo,
+        environment,
       },
     });
 
@@ -88,15 +95,14 @@ export const getTasks = async (req: AuthRequest, res: Response) => {
     const { role, id, departmentId } = req.user!;
     
     // Build where clause based on role
-    let whereClause: any = {};
+    let whereClause: any = { isDeleted: false };
     if (role === 'SuperAdmin') {
-      // SuperAdmin sees all
+      // SuperAdmin sees all non-deleted
     } else if (role === 'Manager') {
       // Manager sees all tasks since there's only one manager
-      whereClause = {};
     } else {
       // Employee sees their assigned tasks and tasks they created
-      whereClause = { OR: [{ assignedToId: id }, { assignedById: id }] };
+      whereClause = { ...whereClause, OR: [{ assignedToId: id }, { assignedById: id }] };
     }
 
     // Apply query filters
@@ -131,7 +137,7 @@ export const getTasks = async (req: AuthRequest, res: Response) => {
 export const getMyTasks = async (req: AuthRequest, res: Response) => {
   try {
     const tasks = await prisma.task.findMany({
-      where: { assignedToId: req.user!.id },
+      where: { assignedToId: req.user!.id, isDeleted: false },
       include: {
         department: { select: { id: true, name: true } },
         assignedBy: { select: { id: true, name: true, role: true } },
@@ -194,11 +200,16 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
     if (!existingTask) return res.status(404).json({ message: 'Task not found' });
 
     // Block if approved (unless SuperAdmin or Manager)
-    if (existingTask.status === 'Approved' && req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
-      return res.status(403).json({ message: 'Cannot edit an approved task' });
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+      if (existingTask.assignedById !== req.user!.id) {
+        return res.status(403).json({ message: 'Not authorized to edit this task' });
+      }
+      if (existingTask.status === 'Approved') {
+        return res.status(403).json({ message: 'Cannot edit an approved task' });
+      }
     }
 
-    const { title, description, category, assignedToId, priority, deadline, proofRequired, proofType } = req.body;
+    const { title, description, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, status } = req.body;
 
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
@@ -210,7 +221,15 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
         priority,
         deadline: deadline ? new Date(deadline) : undefined,
         proofRequired,
-        proofType
+        proofType,
+        clientName,
+        clientDetails,
+        driveLink,
+        socialMediaPlatform,
+        postType,
+        githubRepo,
+        environment,
+        status
       }
     });
 
@@ -293,16 +312,41 @@ export const updateTaskStatus = async (req: AuthRequest, res: Response) => {
 export const deleteTask = async (req: AuthRequest, res: Response) => {
   try {
     const taskId = Number(req.params.id);
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) return res.status(404).json({ message: 'Task not found' });
     
-    // First delete any associated submissions and comments to prevent foreign key constraint errors
-    await prisma.taskSubmission.deleteMany({ where: { taskId } });
-    await prisma.comment.deleteMany({ where: { taskId } });
-    
-    // Then delete the task itself
-    await prisma.task.delete({ where: { id: taskId } });
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+      if (task.assignedById !== req.user!.id) {
+        return res.status(403).json({ message: 'Not authorized to delete this task' });
+      }
+    }
+    // Soft delete the task
+    await prisma.task.update({ where: { id: taskId }, data: { isDeleted: true } });
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
     console.error('Delete Task Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Bulk delete tasks
+// @route   DELETE /api/tasks/bulk
+// @access  Private
+export const bulkDeleteTasks = async (req: AuthRequest, res: Response) => {
+  try {
+    const { ids } = req.body;
+    let whereClause: any = {};
+    if (ids && Array.isArray(ids) && ids.length > 0) {
+      whereClause.id = { in: ids };
+    }
+    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+      whereClause.assignedById = req.user!.id;
+    }
+    
+    const deleted = await prisma.task.updateMany({ where: whereClause, data: { isDeleted: true } });
+    res.json({ message: `${deleted.count} tasks deleted successfully` });
+  } catch (error) {
+    console.error('Bulk Delete Task Error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

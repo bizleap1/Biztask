@@ -1,10 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPendingSubmissions = exports.rejectSubmission = exports.approveSubmission = exports.submitTask = void 0;
-const client_1 = require("@prisma/client");
+exports.bulkDeleteSubmissions = exports.deleteSubmission = exports.getPendingSubmissions = exports.rejectSubmission = exports.approveSubmission = exports.submitTask = void 0;
 const activityLogUtils_1 = require("../utils/activityLogUtils");
 const notificationUtils_1 = require("../utils/notificationUtils");
-const prisma = new client_1.PrismaClient();
+const prismaClient_1 = __importDefault(require("../prismaClient"));
 // @desc    Submit a task for review
 // @route   POST /api/tasks/:taskId/submit
 // @access  Private (Employee)
@@ -13,7 +15,7 @@ const submitTask = async (req, res) => {
         const taskId = Number(req.params.id);
         const { reportText, proofUrl, proofFileName, proofType, completionPercentage, blockers, notes } = req.body;
         const userId = req.user.id;
-        const task = await prisma.task.findUnique({ where: { id: taskId } });
+        const task = await prismaClient_1.default.task.findUnique({ where: { id: taskId } });
         if (!task)
             return res.status(404).json({ message: 'Task not found' });
         if (task.assignedToId !== userId) {
@@ -23,7 +25,7 @@ const submitTask = async (req, res) => {
             return res.status(400).json({ message: 'Proof is required for this task' });
         }
         // Create Submission
-        const submission = await prisma.taskSubmission.create({
+        const submission = await prismaClient_1.default.taskSubmission.create({
             data: {
                 taskId,
                 userId,
@@ -38,7 +40,7 @@ const submitTask = async (req, res) => {
             }
         });
         // Update Task Status
-        await prisma.task.update({
+        await prismaClient_1.default.task.update({
             where: { id: taskId },
             data: { status: 'Submitted' }
         });
@@ -83,14 +85,14 @@ const approveSubmission = async (req, res) => {
     try {
         const submissionId = Number(req.params.id);
         const reviewerId = req.user.id;
-        const submission = await prisma.taskSubmission.findUnique({
+        const submission = await prismaClient_1.default.taskSubmission.findUnique({
             where: { id: submissionId },
             include: { task: true }
         });
         if (!submission)
             return res.status(404).json({ message: 'Submission not found' });
         // Update Submission
-        const updatedSubmission = await prisma.taskSubmission.update({
+        const updatedSubmission = await prismaClient_1.default.taskSubmission.update({
             where: { id: submissionId },
             data: {
                 reviewStatus: 'Approved',
@@ -99,7 +101,7 @@ const approveSubmission = async (req, res) => {
             }
         });
         // Update Task
-        await prisma.task.update({
+        await prismaClient_1.default.task.update({
             where: { id: submission.taskId },
             data: { status: 'Approved' }
         });
@@ -138,14 +140,14 @@ const rejectSubmission = async (req, res) => {
         if (!managerFeedback || managerFeedback.trim() === '') {
             return res.status(400).json({ message: 'Feedback is required to reject a task' });
         }
-        const submission = await prisma.taskSubmission.findUnique({
+        const submission = await prismaClient_1.default.taskSubmission.findUnique({
             where: { id: submissionId },
             include: { task: true }
         });
         if (!submission)
             return res.status(404).json({ message: 'Submission not found' });
         // Update Submission
-        const updatedSubmission = await prisma.taskSubmission.update({
+        const updatedSubmission = await prismaClient_1.default.taskSubmission.update({
             where: { id: submissionId },
             data: {
                 reviewStatus: 'Rejected',
@@ -155,7 +157,7 @@ const rejectSubmission = async (req, res) => {
             }
         });
         // Update Task Status back to Rejected
-        await prisma.task.update({
+        await prismaClient_1.default.task.update({
             where: { id: submission.taskId },
             data: { status: 'Rejected' }
         });
@@ -189,11 +191,11 @@ exports.rejectSubmission = rejectSubmission;
 const getPendingSubmissions = async (req, res) => {
     try {
         const { role, departmentId, id } = req.user;
-        let whereClause = { reviewStatus: 'Pending Review' };
+        let whereClause = { reviewStatus: 'Pending Review', isDeleted: false };
         if (role === 'Manager') {
             // Manager sees all pending submissions
         }
-        const submissions = await prisma.taskSubmission.findMany({
+        const submissions = await prismaClient_1.default.taskSubmission.findMany({
             where: whereClause,
             include: {
                 task: {
@@ -211,3 +213,45 @@ const getPendingSubmissions = async (req, res) => {
     }
 };
 exports.getPendingSubmissions = getPendingSubmissions;
+// @desc    Delete submission
+// @route   DELETE /api/submissions/:id
+// @access  Private
+const deleteSubmission = async (req, res) => {
+    try {
+        const sub = await prismaClient_1.default.taskSubmission.findUnique({ where: { id: Number(req.params.id) } });
+        if (!sub)
+            return res.status(404).json({ message: 'Submission not found' });
+        if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Manager' && sub.userId !== req.user.id) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        await prismaClient_1.default.taskSubmission.update({ where: { id: Number(req.params.id) }, data: { isDeleted: true } });
+        res.json({ message: 'Submission deleted successfully' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.deleteSubmission = deleteSubmission;
+// @desc    Bulk delete submissions
+// @route   DELETE /api/submissions/bulk
+// @access  Private
+const bulkDeleteSubmissions = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        let whereClause = {};
+        if (ids && Array.isArray(ids) && ids.length > 0) {
+            whereClause.id = { in: ids };
+        }
+        if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Manager') {
+            whereClause.userId = req.user.id;
+        }
+        const deleted = await prismaClient_1.default.taskSubmission.updateMany({ where: whereClause, data: { isDeleted: true } });
+        res.json({ message: `${deleted.count} submissions deleted successfully` });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.bulkDeleteSubmissions = bulkDeleteSubmissions;

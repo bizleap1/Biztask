@@ -160,6 +160,55 @@ export default function TaskDetails() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Left Column - Details */}
         <div className="md:col-span-2 space-y-6">
+
+          {/* Dynamic Fields */}
+          {(task.clientName || task.driveLink || task.socialMediaPlatform || task.githubRepo) && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4">
+                Project Details
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {task.clientName && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Client Name</p>
+                    <p className="text-sm text-gray-900 mt-1">{task.clientName}</p>
+                  </div>
+                )}
+                {task.driveLink && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Drive Link</p>
+                    <a href={task.driveLink} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:underline mt-1 block truncate">
+                      {task.driveLink}
+                    </a>
+                  </div>
+                )}
+                {task.socialMediaPlatform && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Platform</p>
+                    <p className="text-sm text-gray-900 mt-1">{task.socialMediaPlatform}</p>
+                  </div>
+                )}
+                {task.postType && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Post Type</p>
+                    <p className="text-sm text-gray-900 mt-1">{task.postType}</p>
+                  </div>
+                )}
+                {task.githubRepo && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">GitHub Repo</p>
+                    <p className="text-sm text-gray-900 mt-1">{task.githubRepo}</p>
+                  </div>
+                )}
+                {task.environment && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Environment</p>
+                    <p className="text-sm text-gray-900 mt-1">{task.environment}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
               <FileText size={20} className="text-[var(--color-brand-gray-dark)]" /> Description

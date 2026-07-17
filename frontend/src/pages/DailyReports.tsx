@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, Filter, CheckCircle, AlertCircle, MessageSquare, FileText } from 'lucide-react';
+import { Eye, Filter, CheckCircle, AlertCircle, MessageSquare, FileText, Trash2 } from 'lucide-react';
 import { dailyReportService } from '../services/dailyReportService';
 
 export default function DailyReports() {
@@ -10,6 +10,7 @@ export default function DailyReports() {
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [feedbackType, setFeedbackType] = useState<'review' | 'needs-correction'>('review');
   const [feedback, setFeedback] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -30,6 +31,51 @@ export default function DailyReports() {
       console.error('Failed to fetch reports', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(reports.map(r => r.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} reports?`)) return;
+    try {
+      await dailyReportService.bulkDeleteReports(selectedIds);
+      setSelectedIds([]);
+      fetchReports();
+    } catch (error) {
+      console.error('Failed to delete reports', error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to delete all currently visible reports?')) return;
+    const ids = reports.map(r => r.id);
+    try {
+      await dailyReportService.bulkDeleteReports(ids);
+      setSelectedIds([]);
+      fetchReports();
+    } catch (error) {
+      console.error('Failed to clear reports', error);
+    }
+  };
+
+  const handleDeleteSingle = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this report?')) return;
+    try {
+      await dailyReportService.deleteReport(id);
+      fetchReports();
+    } catch (error) {
+      console.error('Failed to delete report', error);
     }
   };
 
@@ -159,11 +205,36 @@ export default function DailyReports() {
         />
       </div>
 
+      {/* Bulk Actions */}
+      {(selectedIds.length > 0 || reports.length > 0) && (
+        <div className="flex justify-end gap-3 mb-2">
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} /> Delete Selected ({selectedIds.length})
+            </button>
+          )}
+          {reports.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} /> Clear All
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100 text-gray-500 text-sm">
+                <th className="p-4 font-medium w-12">
+                  <input type="checkbox" checked={selectedIds.length === reports.length && reports.length > 0} onChange={handleSelectAll} className="rounded border-gray-300" />
+                </th>
                 <th className="p-4 font-medium">Employee</th>
                 <th className="p-4 font-medium">Department</th>
                 <th className="p-4 font-medium">Report Date</th>
@@ -175,13 +246,16 @@ export default function DailyReports() {
             <tbody className="divide-y divide-gray-100">
               {reports.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={7} className="p-8 text-center text-gray-500">
                     No reports found matching your filters.
                   </td>
                 </tr>
               ) : (
                 reports.map(report => (
                   <tr key={report.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="p-4">
+                      <input type="checkbox" checked={selectedIds.includes(report.id)} onChange={() => handleSelectRow(report.id)} className="rounded border-gray-300" />
+                    </td>
                     <td className="p-4 text-gray-900 font-medium">
                       <div>
                         {report.user.name}
@@ -228,6 +302,13 @@ export default function DailyReports() {
                           </button>
                         </>
                       )}
+                      <button 
+                        onClick={() => handleDeleteSingle(report.id)}
+                        className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                        title="Delete Report"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </td>
                   </tr>
                 ))

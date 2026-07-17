@@ -5,12 +5,17 @@ import {
   submitTask,
   approveSubmission,
   rejectSubmission,
-  getPendingSubmissions
+  getPendingSubmissions,
+  deleteSubmission,
+  bulkDeleteSubmissions
 } from '../controllers/submissionController';
 
 const router = express.Router();
 
 router.get('/pending', protect, authorizeRoles('SuperAdmin', 'Manager'), getPendingSubmissions as any);
+
+router.delete('/bulk', protect, bulkDeleteSubmissions as any);
+router.delete('/:id', protect, deleteSubmission as any);
 
 router.patch('/:id/approve', protect, authorizeRoles('SuperAdmin', 'Manager'), approveSubmission as any);
 router.patch('/:id/reject', protect, authorizeRoles('SuperAdmin', 'Manager'), rejectSubmission as any);

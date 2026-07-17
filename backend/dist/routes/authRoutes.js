@@ -10,4 +10,6 @@ const router = express_1.default.Router();
 router.post('/login', authController_1.login);
 router.post('/setup', authController_1.setup);
 router.post('/change-password', authMiddleware_1.protect, authController_1.changePassword);
+router.post('/request-reset', authController_1.requestPasswordReset);
+router.post('/execute-reset', authController_1.executePasswordReset);
 exports.default = router;
