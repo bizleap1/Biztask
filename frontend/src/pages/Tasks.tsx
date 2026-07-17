@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Trash2, FileText } from 'lucide-react';
+import { Plus, Search, Trash2, FileText, Edit } from 'lucide-react';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 
@@ -19,6 +19,9 @@ const MEDIA_CATEGORIES = [
 
 export default function Tasks() {
   const navigate = useNavigate();
+  const loggedInUserStr = sessionStorage.getItem('user');
+  const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
+  const isSuperAdmin = loggedInUser?.role === 'SuperAdmin';
   const [tasks, setTasks] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,7 @@ export default function Tasks() {
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -39,7 +43,8 @@ export default function Tasks() {
     priority: 'Medium',
     deadline: '',
     proofRequired: true,
-    proofType: ''
+    proofType: '',
+    status: 'Pending'
   });
 
   const fetchTasks = async () => {
@@ -71,13 +76,18 @@ export default function Tasks() {
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await taskService.createTask(formData);
+      if (editingTaskId) {
+        await taskService.updateTask(editingTaskId, formData);
+      } else {
+        await taskService.createTask(formData);
+      }
       setShowAddModal(false);
+      setEditingTaskId(null);
       fetchTasks();
       // Reset
       setFormData({
         title: '', description: '', departmentId: '', category: '',
-        assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: ''
+        assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: '', status: 'Pending'
       });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create task');
@@ -121,7 +131,14 @@ export default function Tasks() {
           <p className="text-gray-500 text-sm mt-1">Assign and track all company tasks.</p>
         </div>
         <button 
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setEditingTaskId(null);
+            setFormData({
+              title: '', description: '', departmentId: '', category: '',
+              assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: '', status: 'Pending'
+            });
+            setShowAddModal(true);
+          }}
           className="bg-[var(--color-brand-black)] hover:bg-[var(--color-brand-matte)] text-white font-medium py-2 px-5 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
         >
           Create Task <Plus size={20} />
@@ -260,7 +277,32 @@ export default function Tasks() {
                         {t.status}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right">
+                    <td className="px-5 py-3 text-right whitespace-nowrap">
+                      {isSuperAdmin && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTaskId(t.id);
+                            setFormData({
+                              title: t.title,
+                              description: t.description || '',
+                              departmentId: String(t.departmentId || ''),
+                              category: t.category || '',
+                              assignedToId: String(t.assignedToId || ''),
+                              priority: t.priority,
+                              deadline: new Date(t.deadline).toISOString().split('T')[0],
+                              proofRequired: t.proofRequired,
+                              proofType: t.proofType || '',
+                              status: t.status
+                            });
+                            setShowAddModal(true);
+                          }}
+                          className="text-gray-400 hover:text-indigo-600 transition-colors p-1 opacity-0 group-hover:opacity-100 mr-2"
+                          title="Edit Task"
+                        >
+                          <Edit size={16} />
+                        </button>
+                      )}
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
                         className="text-gray-400 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100"
@@ -282,7 +324,7 @@ export default function Tasks() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">Create New Task</h3>
+              <h3 className="text-lg font-bold text-gray-900">{editingTaskId ? 'Edit Task' : 'Create New Task'}</h3>
               <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
@@ -353,17 +395,31 @@ export default function Tasks() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mt-2">
-                    <input type="checkbox" checked={formData.proofRequired} onChange={e => setFormData({...formData, proofRequired: e.target.checked})} className="rounded text-[var(--color-brand-black)] focus:ring-gray-300" />
-                    Require proof submission for completion
-                  </label>
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                      <input type="checkbox" checked={formData.proofRequired} onChange={e => setFormData({...formData, proofRequired: e.target.checked})} className="rounded text-[var(--color-brand-black)] focus:ring-gray-300" />
+                      Require proof submission
+                    </label>
+                  </div>
+                  {editingTaskId && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 border rounded-md">
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Submitted">Submitted</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </form>
             </div>
             <div className="p-6 border-t flex justify-end gap-3 bg-gray-50">
               <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">Cancel</button>
-              <button type="submit" form="task-form" className="btn-primary py-2 px-4">Create Task</button>
+              <button type="submit" form="task-form" className="btn-primary py-2 px-4">{editingTaskId ? 'Save Changes' : 'Create Task'}</button>
             </div>
           </div>
         </div>
