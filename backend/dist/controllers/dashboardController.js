@@ -107,11 +107,22 @@ const getAdminDashboard = async (req, res) => {
             mediaDept ? prismaClient_1.default.user.count({ where: { departmentId: mediaDept.id } }) : Promise.resolve(0)
         ]);
         const missingReportsToday = Math.max(0, expectedSubmitters - todayReports);
-        const recentActivityLogs = realActivityLogs.map(log => ({
-            type: log.action,
-            message: log.description,
-            date: log.createdAt
-        }));
+        const recentActivityLogs = realActivityLogs.map(log => {
+            let msg = log.description || '';
+            if (log.user && log.user.name) {
+                if (msg.startsWith('User ')) {
+                    msg = msg.replace(/^User /, `${log.user.name} `);
+                }
+                else {
+                    msg = `${log.user.name} ${msg.charAt(0).toLowerCase() + msg.slice(1)}`;
+                }
+            }
+            return {
+                type: log.action,
+                message: msg,
+                date: log.createdAt
+            };
+        });
         const departmentWiseTaskStats = departments.map(dept => {
             const stats = departmentWiseTaskStatsRaw.filter(g => g.departmentId === dept.id);
             const overdueStats = departmentWiseOverdueRaw.find(g => g.departmentId === dept.id);
@@ -218,11 +229,22 @@ const getManagerDashboard = async (req, res) => {
         const rejectedTeamTasks = taskStatusCounts.find(s => s.status === 'Rejected')?._count.id || 0;
         const inactiveTeamEmployees = teamEmployees - activeTeamEmployees;
         const missingTeamReportsToday = Math.max(0, expectedSubmitters - todayTeamReports);
-        const recentActivityLogs = realActivityLogs.map(log => ({
-            type: log.action,
-            message: log.description,
-            date: log.createdAt
-        }));
+        const recentActivityLogs = realActivityLogs.map(log => {
+            let msg = log.description || '';
+            if (log.user && log.user.name) {
+                if (msg.startsWith('User ')) {
+                    msg = msg.replace(/^User /, `${log.user.name} `);
+                }
+                else {
+                    msg = `${log.user.name} ${msg.charAt(0).toLowerCase() + msg.slice(1)}`;
+                }
+            }
+            return {
+                type: log.action,
+                message: msg,
+                date: log.createdAt
+            };
+        });
         const teamPerformanceSummary = employees.map(emp => {
             const empTaskGroups = teamTaskGroups.filter(g => g.assignedToId === emp.id);
             const empTotalTasks = empTaskGroups.reduce((sum, g) => sum + g._count.id, 0);
