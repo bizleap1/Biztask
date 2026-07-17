@@ -38,6 +38,8 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
         designation: true,
         isActive: true,
         createdAt: true,
+        resetPasswordRequested: true,
+        canResetPassword: true,
       },
     });
     res.status(200).json(users);
@@ -64,6 +66,8 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
         isActive: true,
         createdAt: true,
         mustChangePassword: true,
+        resetPasswordRequested: true,
+        canResetPassword: true,
       },
     });
 
