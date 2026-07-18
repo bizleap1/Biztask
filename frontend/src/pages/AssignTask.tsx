@@ -70,7 +70,15 @@ export default function AssignTask() {
     } else {
       setError(null);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            noiseSuppression: true,
+            echoCancellation: true,
+            sampleRate: 48000,
+            channelCount: 1,
+            autoGainControl: true
+          } 
+        });
         const recorder = new MediaRecorder(stream);
         const audioChunks: BlobPart[] = [];
 

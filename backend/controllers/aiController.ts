@@ -14,12 +14,13 @@ export const parseTask = async (req: Request, res: Response) => {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    const prompt = `You are a helpful AI assistant that converts voice commands in any language into structured task assignments in English. 
-    Listen to the audio and extract the relevant fields to create a task.
+    const prompt = `You are an expert, highly intelligent AI assistant that converts voice commands into structured task assignments in English. 
+    You are dealing with audio that may be in English, Hindi, Hinglish (a mix), or any other language, and it might have background noise or mispronunciations. 
+    Please listen very carefully and focus on the semantic intent of the speaker. Do not try to translate word-for-word if it doesn't make sense; instead, extract the core task details accurately.
     If a field is not explicitly mentioned, leave it empty or choose a reasonable default based on context.
     For 'priority', choose from: 'Low', 'Medium', 'High'. Default to 'Medium'.
     For 'proofRequired', choose true or false.
-    Format your response EXACTLY as the required JSON schema. Translate all content to proper English.`;
+    Format your response EXACTLY as the required JSON schema. Translate all content to proper, professional English.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-flash-latest',
