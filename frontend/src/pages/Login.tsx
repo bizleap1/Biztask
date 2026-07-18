@@ -63,7 +63,6 @@ export default function Login() {
         password: loginPass
       });
       
-      sessionStorage.setItem('token', data.token);
       sessionStorage.setItem('user', JSON.stringify({
         id: data.id,
         name: data.name,

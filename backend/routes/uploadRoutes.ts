@@ -19,23 +19,30 @@ const upload = multer({
   }
 });
 
-router.post('/', protect, upload.single('file'), async (req, res) => {
+router.post('/', protect, upload.array('files'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
     }
 
-    const { url, path } = await uploadFileToSupabase(req.file.buffer, req.file.originalname, req.file.mimetype);
+    const uploadPromises = files.map(file => 
+      uploadFileToSupabase(file.buffer, file.originalname, file.mimetype)
+    );
+
+    const results = await Promise.all(uploadPromises);
 
     res.status(200).json({
-      url,
-      path,
-      fileName: req.file.originalname,
-      message: 'File uploaded successfully'
+      files: results.map((result, index) => ({
+        url: result.url,
+        path: result.path,
+        fileName: files[index].originalname
+      })),
+      message: 'Files uploaded successfully'
     });
   } catch (error: any) {
     console.error('File Upload Error:', error);
-    res.status(500).json({ message: error.message || 'Failed to upload file' });
+    res.status(500).json({ message: error.message || 'Failed to upload files' });
   }
 });
 

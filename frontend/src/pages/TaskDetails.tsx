@@ -20,7 +20,7 @@ export default function TaskDetails() {
     blockers: '',
     notes: ''
   });
-  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
   // Edit Task Modal
@@ -85,11 +85,11 @@ export default function TaskDetails() {
       let proofUrl = formData.proofUrl;
       let proofFileName = '';
 
-      if (proofFile) {
-        const { uploadFile } = await import('../services/api');
-        const uploadRes = await uploadFile(proofFile);
-        proofUrl = uploadRes.url;
-        proofFileName = uploadRes.fileName;
+      if (proofFiles.length > 0) {
+        const { uploadFiles } = await import('../services/api');
+        const uploadRes = await uploadFiles(proofFiles);
+        proofUrl = JSON.stringify(uploadRes.files.map((f: any) => f.url));
+        proofFileName = uploadRes.files.map((f: any) => f.fileName).join(', ');
       }
 
       const payload = {
@@ -100,7 +100,7 @@ export default function TaskDetails() {
 
       await taskService.submitTask(task.id, payload);
       setShowSubmitModal(false);
-      setProofFile(null);
+      setProofFiles([]);
       fetchTask();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to submit task');
@@ -253,9 +253,23 @@ export default function TaskDetails() {
                       <span className="font-semibold text-xs text-gray-500 uppercase">Report:</span> {sub.reportText}
                     </div>
                     {sub.proofUrl && (
-                      <a href={sub.proofUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-brand-black)] hover:underline">
-                        View Proof Link
-                      </a>
+                      <div className="flex flex-col gap-1 mt-2">
+                        {(() => {
+                           try {
+                             const urls = JSON.parse(sub.proofUrl);
+                             if (Array.isArray(urls)) {
+                               return urls.map((u: string, i: number) => (
+                                 <a key={i} href={u} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline">
+                                   View Proof File {i+1}
+                                 </a>
+                               ));
+                             }
+                           } catch (e) {
+                             // Fallback for single string URLs
+                           }
+                           return <a href={sub.proofUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline">View Proof Link</a>;
+                        })()}
+                      </div>
                     )}
                     {sub.managerFeedback && (
                       <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-md text-sm text-red-800">
@@ -386,27 +400,53 @@ export default function TaskDetails() {
                     <div className="space-y-2">
                       <input 
                         type="file"
+                        multiple
                         onChange={e => {
-                          const file = e.target.files ? e.target.files[0] : null;
-                          if (file) {
+                          const selectedFiles = Array.from(e.target.files || []);
+                          let newFiles = [...proofFiles, ...selectedFiles];
+                          let nonImageCount = 0;
+                          let validFiles: File[] = [];
+
+                          for (const file of newFiles) {
                             if (file.size > 4.5 * 1024 * 1024) {
-                              alert('File is too large! Maximum allowed size is 4.5MB.');
-                              e.target.value = '';
-                              setProofFile(null);
-                              return;
+                              alert(`File ${file.name} is too large! Max 4.5MB.`);
+                              continue;
                             }
-                            const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'video/mp4'];
-                            if (!validTypes.includes(file.type)) {
-                              alert('Invalid file type! Please upload an image, PDF, or video.');
-                              e.target.value = '';
-                              setProofFile(null);
-                              return;
+                            const isImage = file.type.startsWith('image/');
+                            if (isImage) {
+                              validFiles.push(file);
+                            } else {
+                              const validTypes = ['application/pdf', 'video/mp4', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+                              if (!validTypes.includes(file.type)) {
+                                alert(`Invalid file type for ${file.name}! Please upload an image, PDF, DOC, or video.`);
+                                continue;
+                              }
+                              if (nonImageCount >= 4) {
+                                alert(`You can only upload up to 4 non-image files. Skipping ${file.name}.`);
+                                continue;
+                              }
+                              validFiles.push(file);
+                              nonImageCount++;
                             }
-                            setProofFile(file);
                           }
+                          setProofFiles(validFiles);
+                          e.target.value = ''; // Reset input so same file can be selected again if removed
                         }}
                         className="w-full px-3 py-2 border rounded-md focus:ring-purple-500 text-sm"
                       />
+                      {proofFiles.length > 0 && (
+                        <div className="mt-2 text-sm text-gray-600">
+                          <p className="font-medium mb-1">Selected Files:</p>
+                          <ul className="space-y-1">
+                            {proofFiles.map((f, i) => (
+                              <li key={i} className="flex justify-between items-center bg-gray-100 p-1.5 rounded">
+                                <span className="truncate max-w-[200px]">{f.name}</span>
+                                <button type="button" onClick={() => setProofFiles(proofFiles.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
                       <input 
                         type="url" 
@@ -414,7 +454,7 @@ export default function TaskDetails() {
                         onChange={e => setFormData({...formData, proofUrl: e.target.value})} 
                         className="w-full px-3 py-2 border rounded-md focus:ring-purple-500" 
                         placeholder="https://... (External Link)"
-                        disabled={!!proofFile}
+                        disabled={proofFiles.length > 0}
                       />
                     </div>
                     <p className="text-xs text-gray-500 mt-1">Upload a file or provide an external link to your work.</p>

@@ -19,7 +19,7 @@ export default function MyDailyReports() {
     tomorrowPlan: '',
     attachments: ''
   });
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -88,10 +88,10 @@ export default function MyDailyReports() {
       setUploading(true);
       let attachmentUrl = formData.attachments;
 
-      if (attachmentFile) {
-        const { uploadFile } = await import('../services/api');
-        const uploadRes = await uploadFile(attachmentFile);
-        attachmentUrl = uploadRes.url;
+      if (attachmentFiles.length > 0) {
+        const { uploadFiles } = await import('../services/api');
+        const uploadRes = await uploadFiles(attachmentFiles);
+        attachmentUrl = JSON.stringify(uploadRes.files.map((f: any) => f.url));
       }
 
       const payload = {
@@ -129,7 +129,7 @@ export default function MyDailyReports() {
 
   const openSubmitModal = () => {
     resetForm();
-    setAttachmentFile(null);
+    setAttachmentFiles([]);
     setSelectedReport(null);
     setShowSubmitModal(true);
   };
@@ -355,27 +355,53 @@ export default function MyDailyReports() {
                   <div className="space-y-2">
                     <input 
                       type="file"
+                      multiple
                       onChange={e => {
-                        const file = e.target.files ? e.target.files[0] : null;
-                        if (file) {
+                        const selectedFiles = Array.from(e.target.files || []);
+                        let newFiles = [...attachmentFiles, ...selectedFiles];
+                        let nonImageCount = 0;
+                        let validFiles: File[] = [];
+
+                        for (const file of newFiles) {
                           if (file.size > 4.5 * 1024 * 1024) {
-                            alert('File is too large! Maximum allowed size is 4.5MB.');
-                            e.target.value = '';
-                            setAttachmentFile(null);
-                            return;
+                            alert(`File ${file.name} is too large! Max 4.5MB.`);
+                            continue;
                           }
-                          const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-                          if (!validTypes.includes(file.type)) {
-                            alert('Invalid file type! Please upload an image, PDF, or Word document.');
-                            e.target.value = '';
-                            setAttachmentFile(null);
-                            return;
+                          const isImage = file.type.startsWith('image/');
+                          if (isImage) {
+                            validFiles.push(file);
+                          } else {
+                            const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+                            if (!validTypes.includes(file.type)) {
+                              alert(`Invalid file type for ${file.name}! Please upload an image, PDF, or Word document.`);
+                              continue;
+                            }
+                            if (nonImageCount >= 4) {
+                              alert(`You can only upload up to 4 non-image files. Skipping ${file.name}.`);
+                              continue;
+                            }
+                            validFiles.push(file);
+                            nonImageCount++;
                           }
-                          setAttachmentFile(file);
                         }
+                        setAttachmentFiles(validFiles);
+                        e.target.value = '';
                       }}
                       className="w-full px-3 py-2 border rounded-md focus:ring-indigo-500 text-sm"
                     />
+                    {attachmentFiles.length > 0 && (
+                      <div className="mt-2 text-sm text-gray-600">
+                        <p className="font-medium mb-1">Selected Files:</p>
+                        <ul className="space-y-1">
+                          {attachmentFiles.map((f, i) => (
+                            <li key={i} className="flex justify-between items-center bg-gray-100 p-1.5 rounded">
+                              <span className="truncate max-w-[200px]">{f.name}</span>
+                              <button type="button" onClick={() => setAttachmentFiles(attachmentFiles.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <div className="flex items-center text-sm text-gray-500 my-2">- OR -</div>
                     <input
                       type="url"
@@ -383,7 +409,7 @@ export default function MyDailyReports() {
                       value={formData.attachments}
                       onChange={e => setFormData({...formData, attachments: e.target.value})}
                       placeholder="https://... (External Link)"
-                      disabled={!!attachmentFile}
+                      disabled={attachmentFiles.length > 0}
                     />
                   </div>
                 </div>
@@ -478,14 +504,27 @@ export default function MyDailyReports() {
               {selectedReport.attachments && (
                 <div>
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-2">Attachments</h3>
-                  <a 
-                    href={selectedReport.attachments} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800"
-                  >
-                    View Attached Proof ↗
-                  </a>
+                  <div className="flex flex-col gap-1">
+                    {(() => {
+                       try {
+                         const urls = JSON.parse(selectedReport.attachments);
+                         if (Array.isArray(urls)) {
+                           return urls.map((u: string, i: number) => (
+                             <a key={i} href={u} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800">
+                               View Attached Proof {i+1} ↗
+                             </a>
+                           ));
+                         }
+                       } catch (e) {
+                         // Fallback for single string URLs
+                       }
+                       return (
+                         <a href={selectedReport.attachments} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800">
+                           View Attached Proof ↗
+                         </a>
+                       );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>

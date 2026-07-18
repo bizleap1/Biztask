@@ -8,10 +8,9 @@ interface AuthGuardProps {
 
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children, allowedRoles }) => {
   const userStr = sessionStorage.getItem('user');
-  const token = sessionStorage.getItem('token');
   const location = useLocation();
 
-  if (!token || !userStr) {
+  if (!userStr) {
     return <Navigate to="/login" replace />;
   }
 

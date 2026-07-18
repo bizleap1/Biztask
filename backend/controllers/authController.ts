@@ -33,6 +33,14 @@ export const login = async (req: Request, res: Response) => {
         req
       }).catch(err => console.error('Failed to create activity log:', err));
 
+      const token = generateToken(user.id);
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+      });
+
       res.json({
         id: user.id,
         name: user.name,
@@ -42,7 +50,7 @@ export const login = async (req: Request, res: Response) => {
         designation: user.designation,
         status: user.isActive ? 'Active' : 'Inactive',
         mustChangePassword: user.mustChangePassword,
-        token: generateToken(user.id),
+        token: token,
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
@@ -79,12 +87,20 @@ export const setup = async (req: Request, res: Response) => {
       },
     });
 
+    const token = generateToken(user.id);
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+
     res.status(201).json({
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user.id),
+      token: token,
     });
   } catch (error) {
     console.error(error);
@@ -201,6 +217,14 @@ export const executePasswordReset = async (req: Request, res: Response) => {
     res.json({ message: 'Password updated successfully.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error' });
   }
+};
+
+export const logout = (req: Request, res: Response) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.json({ message: 'Logged out successfully' });
 };

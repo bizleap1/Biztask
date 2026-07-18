@@ -3,21 +3,26 @@ import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-d
 import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo';
+import api from '../services/api';
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // We'll replace this with real auth state later
-  const token = sessionStorage.getItem('token');
-  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const userStr = sessionStorage.getItem('user');
+  const user = JSON.parse(userStr || '{}');
 
-  if (!token) {
+  if (!userStr) {
     return <Navigate to="/login" replace />;
   }
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('token');
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout error', error);
+    }
     sessionStorage.removeItem('user');
     navigate('/login');
   };

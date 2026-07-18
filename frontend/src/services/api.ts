@@ -2,23 +2,13 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-});
-
-api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('token');
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
+  withCredentials: true,
 });
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      sessionStorage.removeItem('token');
       sessionStorage.removeItem('user');
       window.location.href = '/login';
     }
@@ -26,9 +16,9 @@ api.interceptors.response.use(
   }
 );
 
-export const uploadFile = async (file: File) => {
+export const uploadFiles = async (files: File[]) => {
   const formData = new FormData();
-  formData.append('file', file);
+  files.forEach(file => formData.append('files', file));
   
   const response = await api.post('/upload', formData, {
     headers: {

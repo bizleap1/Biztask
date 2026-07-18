@@ -3,8 +3,9 @@ import { AuthRequest } from '../middleware/authMiddleware';
 import { calculateMonthlyReportRate } from '../utils/reportUtils';
 
 import prisma from '../prismaClient';
+import NodeCache from 'node-cache';
 
-// Helper to calculate performance score
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache// Helper to calculate performance score
 const calculatePerformanceScore = (approved: number, overdue: number, rejected: number, dailyReports: number) => {
   // Simple formula as requested
   const score = (approved * 10) - (overdue * 5) - (rejected * 3) + (dailyReports * 2);
@@ -31,6 +32,12 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
   try {
     const { startDate, endDate, department } = req.query;
     
+    const cacheKey = `admin_${startDate || ''}_${endDate || ''}_${department || ''}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
+
     // Filters
     const dateFilter = getDateFilter(startDate as string, endDate as string);
     const deptFilter = department ? { department: { name: department as string } } : {};
@@ -183,14 +190,17 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    res.json({
+    const responseData = {
       totalEmployees, activeEmployees, inactiveEmployees,
       developmentTeamCount, mediaTeamCount, managementCount,
       totalTasks, pendingTasks, inProgressTasks, submittedTasks, approvedTasks, rejectedTasks, overdueTasks: overdueTasksCount,
       totalDailyReports, todayReports, missingReportsToday, reportsNeedingCorrection, reviewedReports,
       pendingReviewSubmissions, recentTaskSubmissions, recentDailyReports, recentActivityLogs,
       departmentWiseTaskStats, departmentWiseReportStats, employeePerformanceSummary, upcomingDeadlines, overdueTaskList
-    });
+    };
+
+    cache.set(cacheKey, responseData);
+    res.json(responseData);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error loading admin dashboard' });
@@ -200,6 +210,12 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
 export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
   try {
     const { startDate, endDate } = req.query;
+    const cacheKey = `manager_${startDate || ''}_${endDate || ''}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
+
     const dateFilter = getDateFilter(startDate as string, endDate as string);
     const deptFilter = {};
 
@@ -319,13 +335,16 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
       pending: pendingTeamTasks
     };
 
-    res.json({
+    const responseData = {
       teamEmployees, activeTeamEmployees, inactiveTeamEmployees,
       totalTeamTasks, pendingTeamTasks, inProgressTeamTasks, submittedTeamTasks, approvedTeamTasks, rejectedTeamTasks, overdueTeamTasks,
       todayTeamReports, missingTeamReportsToday, reportsNeedingCorrection,
       pendingReviewSubmissions, recentTeamSubmissions, recentTeamReports, recentActivityLogs,
       teamPerformanceSummary, upcomingTeamDeadlines, overdueTeamTaskList, departmentTaskStats
-    });
+    };
+
+    cache.set(cacheKey, responseData);
+    res.json(responseData);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error loading manager dashboard' });
@@ -335,6 +354,11 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
 export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const cacheKey = `employee_${userId}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
 
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -377,12 +401,15 @@ export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
       myReportSubmissionRate = Number(await calculateMonthlyReportRate(userId));
     }
 
-    res.json({
+    const responseData = {
       myTotalTasks, myPendingTasks, myInProgressTasks, mySubmittedTasks, myApprovedTasks, myRejectedTasks, myOverdueTasks,
       todayReportStatus, latestManagerFeedback,
       myRecentTasks, myUpcomingDeadlines, myRejectedTasksWithFeedback, myRecentDailyReports,
       myTaskCompletionRate, myReportSubmissionRate
-    });
+    };
+
+    cache.set(cacheKey, responseData);
+    res.json(responseData);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error loading employee dashboard' });
@@ -391,6 +418,12 @@ export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
 
 export const getHrDashboard = async (req: AuthRequest, res: Response) => {
   try {
+    const cacheKey = `hr_dashboard`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return res.json(cachedData);
+    }
+
     const today = new Date();
     today.setHours(0,0,0,0);
     const tomorrow = new Date(today);
@@ -428,10 +461,13 @@ export const getHrDashboard = async (req: AuthRequest, res: Response) => {
     const dailyReportCompliance = expectedSubmitters > 0 ? ((todayReports / expectedSubmitters) * 100).toFixed(1) : 0;
     const taskCompletionOverview = totalTasks > 0 ? ((approvedTasks / totalTasks) * 100).toFixed(1) : 0;
 
-    res.json({
+    const responseData = {
       totalEmployees, activeEmployees, inactiveEmployees,
       departmentWiseEmployees, dailyReportCompliance, taskCompletionOverview, recentReports
-    });
+    };
+
+    cache.set(cacheKey, responseData);
+    res.json(responseData);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error loading HR dashboard' });
