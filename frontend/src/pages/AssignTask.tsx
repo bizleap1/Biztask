@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 import TaskProgressionWidget from '../components/TaskProgressionWidget';
+import { Mic, MicOff, Loader2 } from 'lucide-react';
+import { aiService } from '../services/aiService';
 
 const DEV_CATEGORIES = [
   'Website Development', 'Frontend Change', 'Backend API', 'Bug Fix',
@@ -23,6 +25,9 @@ export default function AssignTask() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isParsingTask, setIsParsingTask] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -55,6 +60,58 @@ export default function AssignTask() {
     fetchEmployees();
   }, []);
 
+  const handleMicClick = async () => {
+    if (isRecording) {
+      if (mediaRecorder) {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+      }
+    } else {
+      setError(null);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const audioChunks: BlobPart[] = [];
+
+        recorder.ondataavailable = (e) => {
+          audioChunks.push(e.data);
+        };
+
+        recorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          setIsParsingTask(true);
+          try {
+            const parsedData = await aiService.parseTaskFromAudio(audioBlob);
+            setFormData(prev => {
+              let deptId = prev.departmentId;
+              if (parsedData.category) {
+                if (DEV_CATEGORIES.includes(parsedData.category)) deptId = '2';
+                else if (MEDIA_CATEGORIES.includes(parsedData.category)) deptId = '3';
+              }
+              return {
+                ...prev,
+                ...parsedData,
+                departmentId: deptId || prev.departmentId,
+              };
+            });
+          } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to parse task from voice.');
+          } finally {
+            setIsParsingTask(false);
+          }
+        };
+
+        recorder.start();
+        setMediaRecorder(recorder);
+        setIsRecording(true);
+      } catch (err) {
+        console.error('Error accessing microphone', err);
+        setError('Could not access microphone. Please allow microphone permissions.');
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -83,9 +140,24 @@ export default function AssignTask() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Assign a Task</h1>
-        <p className="text-gray-500 text-sm mt-1">Create and assign a new task to a team member.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Assign a Task</h1>
+          <p className="text-gray-500 text-sm mt-1">Create and assign a new task to a team member.</p>
+        </div>
+        <button
+          onClick={handleMicClick}
+          disabled={isParsingTask}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-sm ${isRecording ? 'bg-red-50 text-red-600 border border-red-200 animate-pulse' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}
+        >
+          {isParsingTask ? (
+            <><Loader2 className="w-5 h-5 animate-spin" /> Parsing...</>
+          ) : isRecording ? (
+            <><MicOff className="w-5 h-5" /> Stop Recording</>
+          ) : (
+            <><Mic className="w-5 h-5" /> Speak Task</>
+          )}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

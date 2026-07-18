@@ -71,7 +71,8 @@ export default function Login() {
         departmentId: data.departmentId,
         designation: data.designation,
         status: data.status,
-        mustChangePassword: data.mustChangePassword
+        mustChangePassword: data.mustChangePassword,
+        token: data.token
       }));
       
       if (data.mustChangePassword) {

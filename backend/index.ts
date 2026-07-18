@@ -12,6 +12,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import activityLogRoutes from './routes/activityLogRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import systemRoutes from './routes/systemRoutes';
+import aiRoutes from './routes/aiRoutes';
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Other routes will be added later
 
