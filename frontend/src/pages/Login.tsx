@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
@@ -9,6 +9,12 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Phase 1 Security: purge stale legacy tokens from localStorage/sessionStorage on load
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }, []);
   const [loading, setLoading] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -81,7 +87,12 @@ export default function Login() {
         navigate('/dashboard');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to login');
+      if (err.response?.status === 429 || err.response?.data?.error?.code === 'AUTH_RATE_LIMIT_EXCEEDED') {
+        setError('Too many failed login attempts. Please wait 15 minutes before trying again.');
+      } else {
+        const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to login';
+        setError(msg);
+      }
       setLoading(false);
     }
   };

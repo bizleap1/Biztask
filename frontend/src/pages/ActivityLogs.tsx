@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, Search, FileText, Trash2 } from 'lucide-react';
+import { Activity, Search, FileText } from 'lucide-react';
 import { activityLogService } from '../services/activityLogService';
 
 export default function ActivityLogs() {
@@ -8,7 +8,6 @@ export default function ActivityLogs() {
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [entityFilter, setEntityFilter] = useState('');
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const fetchLogs = async () => {
     try {
@@ -35,51 +34,6 @@ export default function ActivityLogs() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchLogs();
-  };
-
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedIds(logs.map(l => l.id));
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  const handleSelectRow = (id: number) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
-  };
-
-  const handleDeleteSelected = async () => {
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} logs?`)) return;
-    try {
-      await activityLogService.bulkDeleteActivityLogs(selectedIds);
-      setSelectedIds([]);
-      fetchLogs();
-    } catch (error) {
-      console.error('Failed to delete logs', error);
-    }
-  };
-
-  const handleClearAll = async () => {
-    if (!window.confirm('Are you sure you want to delete all currently visible logs?')) return;
-    const ids = logs.map(l => l.id);
-    try {
-      await activityLogService.bulkDeleteActivityLogs(ids);
-      setSelectedIds([]);
-      fetchLogs();
-    } catch (error) {
-      console.error('Failed to clear logs', error);
-    }
-  };
-
-  const handleDeleteSingle = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this log?')) return;
-    try {
-      await activityLogService.deleteActivityLog(id);
-      fetchLogs();
-    } catch (error) {
-      console.error('Failed to delete log', error);
-    }
   };
 
   return (
@@ -130,36 +84,12 @@ export default function ActivityLogs() {
         </select>
       </div>
 
-      {/* Bulk Actions */}
-      {(selectedIds.length > 0 || logs.length > 0) && (
-        <div className="flex justify-end gap-3">
-          {selectedIds.length > 0 && (
-            <button
-              onClick={handleDeleteSelected}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center gap-2"
-            >
-              <Trash2 size={16} /> Delete Selected ({selectedIds.length})
-            </button>
-          )}
-          {logs.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
-            >
-              <Trash2 size={16} /> Clear All
-            </button>
-          )}
-        </div>
-      )}
-
+      {/* Activity Log Header & Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-4 w-12">
-                  <input type="checkbox" checked={selectedIds.length === logs.length && logs.length > 0} onChange={handleSelectAll} className="rounded border-gray-300" />
-                </th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-600">Time</th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-600">User</th>
                 <th className="px-6 py-4 text-sm font-semibold text-gray-600">Action</th>
@@ -170,11 +100,11 @@ export default function ActivityLogs() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Loading logs...</td>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading logs...</td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center flex flex-col items-center justify-center">
+                  <td colSpan={5} className="px-6 py-12 text-center flex flex-col items-center justify-center">
                     <FileText className="text-gray-300 mb-3" size={32} />
                     <p className="text-gray-500 font-medium">No activity logs found</p>
                   </td>
@@ -182,9 +112,6 @@ export default function ActivityLogs() {
               ) : (
                 logs.map((log) => (
                   <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <input type="checkbox" checked={selectedIds.includes(log.id)} onChange={() => handleSelectRow(log.id)} className="rounded border-gray-300" />
-                    </td>
                     <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
                       {new Date(log.createdAt).toLocaleString()}
                     </td>
@@ -206,15 +133,6 @@ export default function ActivityLogs() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-800 truncate max-w-xs">
                       {log.description}
-                    </td>
-                    <td className="px-6 py-4">
-                      <button 
-                        onClick={() => handleDeleteSingle(log.id)}
-                        className="text-gray-400 hover:text-red-600 transition-colors p-1"
-                        title="Delete Log"
-                      >
-                        <Trash2 size={16} />
-                      </button>
                     </td>
                   </tr>
                 ))

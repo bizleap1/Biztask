@@ -206,7 +206,7 @@ export const getPendingSubmissions = async (req: AuthRequest, res: Response) => 
   try {
     const { role, departmentId, id } = req.user!;
     
-    let whereClause: any = { reviewStatus: 'Pending Review', isDeleted: false };
+    let whereClause: any = { reviewStatus: 'Pending Review', isDeleted: false, deletedAt: null };
     
     if (role === 'Manager') {
       // Manager sees all pending submissions
@@ -235,12 +235,30 @@ export const getPendingSubmissions = async (req: AuthRequest, res: Response) => 
 // @access  Private
 export const deleteSubmission = async (req: AuthRequest, res: Response) => {
   try {
-    const sub = await prisma.taskSubmission.findUnique({ where: { id: Number(req.params.id) } });
+    const subId = Number(req.params.id);
+    const sub = await prisma.taskSubmission.findUnique({ where: { id: subId } });
     if (!sub) return res.status(404).json({ message: 'Submission not found' });
     if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager' && sub.userId !== req.user!.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
-    await prisma.taskSubmission.update({ where: { id: Number(req.params.id) }, data: { isDeleted: true } });
+    await prisma.taskSubmission.update({ 
+      where: { id: subId }, 
+      data: { 
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      } 
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'SUBMISSION_DELETED',
+      entityType: 'TaskSubmission',
+      entityId: subId,
+      description: `Soft-deleted submission ID ${subId}`,
+      req
+    });
+
     res.json({ message: 'Submission deleted successfully' });
   } catch (error) {
     console.error(error);
@@ -248,20 +266,40 @@ export const deleteSubmission = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// @desc    Bulk delete submissions
+// @desc    Bulk delete submissions (max 100)
 // @route   DELETE /api/submissions/bulk
 // @access  Private
 export const bulkDeleteSubmissions = async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
-    let whereClause: any = {};
-    if (ids && Array.isArray(ids) && ids.length > 0) {
-      whereClause.id = { in: ids };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No submission IDs provided' });
     }
+    if (ids.length > 100) {
+      return res.status(400).json({ message: 'Cannot bulk delete more than 100 submissions at once' });
+    }
+
+    let whereClause: any = { id: { in: ids } };
     if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
       whereClause.userId = req.user!.id;
     }
-    const deleted = await prisma.taskSubmission.updateMany({ where: whereClause, data: { isDeleted: true } });
+    const deleted = await prisma.taskSubmission.updateMany({ 
+      where: whereClause, 
+      data: { 
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      } 
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'SUBMISSION_BULK_DELETED',
+      entityType: 'TaskSubmission',
+      description: `Soft-deleted ${deleted.count} submissions`,
+      req
+    });
+
     res.json({ message: `${deleted.count} submissions deleted successfully` });
   } catch (error) {
     console.error(error);

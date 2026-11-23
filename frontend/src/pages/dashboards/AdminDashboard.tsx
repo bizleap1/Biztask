@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dashboardService } from '../../services/dashboardService';
-import { clearSystemData } from '../../services/api';
 import { Users, FileText, CheckCircle, AlertTriangle, Filter, LayoutDashboard, Activity } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import { taskService } from '../../services/taskService';
@@ -80,19 +79,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleClearData = async () => {
-    if (window.confirm("WARNING: This will permanently delete ALL tasks, reports, submissions, notifications, and activity logs. Users and departments will remain. Are you absolutely sure?")) {
-      try {
-        await clearSystemData();
-        alert("System data cleared successfully.");
-        fetchData(false);
-      } catch (error) {
-        console.error("Failed to clear data", error);
-        alert("Error clearing data. Please try again.");
-      }
-    }
-  };
-
   if (!data && loading) return <div className="p-8 text-center text-gray-500">Loading SuperAdmin Dashboard...</div>;
   if (!data) return <div className="p-8 text-center text-red-500">Failed to load data.</div>;
 
@@ -140,13 +126,6 @@ export default function AdminDashboard() {
           <button onClick={() => fetchData(true)} disabled={refreshing} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2">
             {refreshing ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></span> : null}
             {refreshing ? 'Refreshing...' : 'Refresh Data'}
-          </button>
-          <div className="h-6 w-px bg-gray-200"></div>
-          <button 
-            onClick={handleClearData} 
-            className="w-full sm:w-auto ml-2 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded text-sm font-bold transition-colors"
-          >
-            Clear All Data
           </button>
         </div>
       </div>

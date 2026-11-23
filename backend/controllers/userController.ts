@@ -23,7 +23,8 @@ export const getDepartments = async (req: AuthRequest, res: Response) => {
 export const getUsers = async (req: AuthRequest, res: Response) => {
   try {
     let whereClause: any = {
-      role: { not: 'SuperAdmin' }
+      role: { not: 'SuperAdmin' },
+      deletedAt: null
     };
 
     const users = await prisma.user.findMany({
@@ -204,12 +205,27 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
       }
     });
 
+    if (role && role !== user.role) {
+      await createActivityLog({
+        userId: req.user!.id,
+        action: 'CHANGE_USER_ROLE',
+        entityType: 'User',
+        entityId: user.id,
+        description: `${req.user!.name} changed role of ${user.name} from ${user.role} to ${role}`,
+        actorType: 'User',
+        actorName: req.user!.name,
+        req
+      });
+    }
+
     await createActivityLog({
       userId: req.user!.id,
       action: 'EMPLOYEE_UPDATED',
       entityType: 'User',
       entityId: updatedUser.id,
       description: `Updated employee: ${updatedUser.name}`,
+      actorType: 'User',
+      actorName: req.user!.name,
       req
     });
 
@@ -306,48 +322,46 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
     }
 
     if (userToDelete.role === 'SuperAdmin') {
-      const superAdminCount = await prisma.user.count({ where: { role: 'SuperAdmin', isActive: true } });
+      const superAdminCount = await prisma.user.count({ where: { role: 'SuperAdmin', isActive: true, deletedAt: null } });
       if (superAdminCount <= 1) {
         return res.status(400).json({ message: 'Cannot delete the last active SuperAdmin' });
       }
     }
     
-    // Manual cascade delete for safety
-    await prisma.taskSubmission.deleteMany({ where: { userId } });
-    await prisma.taskSubmission.deleteMany({ where: { reviewedById: userId } });
-    await prisma.comment.deleteMany({ where: { userId } });
-    await prisma.notification.deleteMany({ where: { userId } });
-    await prisma.activityLog.deleteMany({ where: { userId } });
-    await prisma.dailyReport.deleteMany({ where: { userId } });
-    await prisma.dailyReport.updateMany({ where: { reviewedById: userId }, data: { reviewedById: null } });
-    
-    // Update tasks assigned TO this user to be Unassigned
-    await prisma.task.updateMany({
-      where: { assignedToId: userId },
-      data: { assignedToId: null, status: 'Pending' }
+    // Soft delete user: deactivate and timestamp (no hard delete)
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      }
     });
 
-    // Delete tasks assigned BY this user (e.g. if manager is deleted, testing purposes)
-    const tasksAssignedBy = await prisma.task.findMany({ where: { assignedById: userId } });
-    for (const t of tasksAssignedBy) {
-      await prisma.taskSubmission.deleteMany({ where: { taskId: t.id } });
-      await prisma.task.delete({ where: { id: t.id } });
-    }
+    // Revoke all active sessions for this deactivated user
+    await prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
 
-    await prisma.user.delete({
-      where: { id: userId }
+    // Unassign pending tasks
+    await prisma.task.updateMany({
+      where: { assignedToId: userId, status: 'Pending' },
+      data: { assignedToId: null }
     });
     
     await createActivityLog({
       userId: req.user!.id,
-      action: 'EMPLOYEE_REMOVED',
+      action: 'USER_DELETED',
       entityType: 'User',
       entityId: userId,
-      description: `Removed employee ID ${userId}`,
+      description: `${req.user!.name} soft-deleted employee ${userToDelete.name} (${userToDelete.email})`,
+      actorType: 'User',
+      actorName: req.user!.name,
       req
     });
 
-    res.json({ message: 'User deleted successfully' });
+    res.json({ message: 'User deactivated and removed from active list successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

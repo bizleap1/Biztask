@@ -12,7 +12,7 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
     const { isRead, type, startDate, endDate, page = '1', limit = '10' } = req.query;
     const userId = req.user!.id;
 
-    let whereClause: any = { userId };
+    let whereClause: any = { userId, deletedAt: null };
 
     if (isRead !== undefined) {
       whereClause.isRead = isRead === 'true';
@@ -64,7 +64,7 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
 export const getUnreadCount = async (req: AuthRequest, res: Response) => {
   try {
     const count = await prisma.notification.count({
-      where: { userId: req.user!.id, isRead: false }
+      where: { userId: req.user!.id, isRead: false, deletedAt: null }
     });
     res.json({ count });
   } catch (error) {
@@ -123,7 +123,13 @@ export const deleteNotification = async (req: AuthRequest, res: Response) => {
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
     if (notification.userId !== req.user!.id) return res.status(403).json({ message: 'Forbidden' });
 
-    await prisma.notification.delete({ where: { id: notificationId } });
+    await prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      }
+    });
     res.json({ message: 'Notification deleted' });
   } catch (error) {
     console.error('Delete Notification Error:', error);

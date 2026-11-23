@@ -95,7 +95,7 @@ export const getTasks = async (req: AuthRequest, res: Response) => {
     const { role, id, departmentId } = req.user!;
     
     // Build where clause based on role
-    let whereClause: any = { isDeleted: false };
+    let whereClause: any = { isDeleted: false, deletedAt: null };
     if (role === 'SuperAdmin') {
       // SuperAdmin sees all non-deleted
     } else if (role === 'Manager') {
@@ -137,7 +137,7 @@ export const getTasks = async (req: AuthRequest, res: Response) => {
 export const getMyTasks = async (req: AuthRequest, res: Response) => {
   try {
     const tasks = await prisma.task.findMany({
-      where: { assignedToId: req.user!.id, isDeleted: false },
+      where: { assignedToId: req.user!.id, isDeleted: false, deletedAt: null },
       include: {
         department: { select: { id: true, name: true } },
         assignedBy: { select: { id: true, name: true, role: true } },
@@ -175,11 +175,17 @@ export const getTaskById = async (req: AuthRequest, res: Response) => {
 
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    // Validate access
-    const { role, id } = req.user!;
-    if (role !== 'SuperAdmin' && role !== 'Manager') {
-      if (task.assignedToId !== id) {
-        return res.status(403).json({ message: 'Not authorized to view this task' });
+    // Validate access (IDOR protection)
+    const { role, id, departmentId } = req.user!;
+    if (role !== 'SuperAdmin') {
+      if (role === 'Manager') {
+        if (task.departmentId && departmentId && task.departmentId !== departmentId) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not authorized to view tasks outside your department' } });
+        }
+      } else {
+        if (task.assignedToId !== id) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not authorized to view this task' } });
+        }
       }
     }
 
@@ -321,7 +327,24 @@ export const deleteTask = async (req: AuthRequest, res: Response) => {
       }
     }
     // Soft delete the task
-    await prisma.task.update({ where: { id: taskId }, data: { isDeleted: true } });
+    await prisma.task.update({ 
+      where: { id: taskId }, 
+      data: { 
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      } 
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'TASK_DELETED',
+      entityType: 'Task',
+      entityId: taskId,
+      description: `Soft-deleted task "${task.title}" (ID: ${taskId})`,
+      req
+    });
+
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
     console.error('Delete Task Error:', error);
@@ -329,21 +352,41 @@ export const deleteTask = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// @desc    Bulk delete tasks
+// @desc    Bulk delete tasks (max 100)
 // @route   DELETE /api/tasks/bulk
 // @access  Private
 export const bulkDeleteTasks = async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
-    let whereClause: any = {};
-    if (ids && Array.isArray(ids) && ids.length > 0) {
-      whereClause.id = { in: ids };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No task IDs provided' });
     }
+    if (ids.length > 100) {
+      return res.status(400).json({ message: 'Cannot bulk delete more than 100 tasks at once' });
+    }
+
+    let whereClause: any = { id: { in: ids } };
     if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
       whereClause.assignedById = req.user!.id;
     }
     
-    const deleted = await prisma.task.updateMany({ where: whereClause, data: { isDeleted: true } });
+    const deleted = await prisma.task.updateMany({ 
+      where: whereClause, 
+      data: { 
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      } 
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'TASK_BULK_DELETED',
+      entityType: 'Task',
+      description: `Soft-deleted ${deleted.count} tasks`,
+      req
+    });
+
     res.json({ message: `${deleted.count} tasks deleted successfully` });
   } catch (error) {
     console.error('Bulk Delete Task Error:', error);

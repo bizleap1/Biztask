@@ -8,6 +8,8 @@ interface CreateActivityLogParams {
   entityType?: string;
   entityId?: number;
   description?: string;
+  actorType?: string;
+  actorName?: string;
   metadata?: any;
   req?: Request;
 }
@@ -24,6 +26,8 @@ export const createActivityLog = async (params: CreateActivityLogParams) => {
         entityType: params.entityType,
         entityId: params.entityId,
         description: params.description,
+        actorType: params.actorType || 'User',
+        actorName: params.actorName || null,
         metadata: params.metadata ? JSON.stringify(params.metadata) : null,
         ipAddress,
         userAgent,

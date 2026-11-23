@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sentry/react": "^11.16.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/colorthief": "^2.6.1",
     "autoprefixer": "^10.5.2",

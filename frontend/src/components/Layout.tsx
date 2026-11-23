@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar } from 'lucide-react';
+import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar, Trash2, ShieldAlert } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo';
 import api from '../services/api';
@@ -24,7 +24,23 @@ export default function Layout() {
       console.error('Logout error', error);
     }
     sessionStorage.removeItem('user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     navigate('/login');
+  };
+
+  const handleLogoutAll = async () => {
+    if (window.confirm('Are you sure you want to log out of all active devices?')) {
+      try {
+        await api.post('/auth/logout-all');
+      } catch (error) {
+        console.error('Logout all error', error);
+      }
+      sessionStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/login');
+    }
   };
 
   return (
@@ -102,9 +118,14 @@ export default function Layout() {
             </Link>
           )}
           {user.role === 'SuperAdmin' && (
-            <Link to="/settings" className={getLinkClass('/settings')} onClick={() => setSidebarOpen(false)}>
-              <Settings size={18} /> Settings
-            </Link>
+            <>
+              <Link to="/trash" className={getLinkClass('/trash')} onClick={() => setSidebarOpen(false)}>
+                <Trash2 size={18} /> Trash & Recovery
+              </Link>
+              <Link to="/settings" className={getLinkClass('/settings')} onClick={() => setSidebarOpen(false)}>
+                <Settings size={18} /> Settings
+              </Link>
+            </>
           )}
               </>
             );
@@ -121,6 +142,13 @@ export default function Layout() {
               <p className="text-xs text-gray-500">{user.role || 'Role'}</p>
             </div>
           </div>
+          <button 
+            onClick={handleLogoutAll}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 font-medium text-xs hover:bg-gray-100 hover:text-gray-900 transition-colors mb-1"
+            title="Revokes active sessions across all devices"
+          >
+            <ShieldAlert size={16} /> Logout All Devices
+          </button>
           <button 
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-600 font-medium text-sm hover:bg-red-50 transition-colors"

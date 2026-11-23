@@ -13,7 +13,7 @@ model User {
   name             String
   email            String             @unique
   password         String
-  role             String             @default("Viewer") // SuperAdmin, Manager, DevEmployee, MediaEmployee, Viewer
+  role             String             @default("Viewer") // SuperAdmin, Admin, Manager, HR, DevEmployee, MediaEmployee, Viewer
   designation      String?
   isActive         Boolean            @default(true)
   mustChangePassword Boolean          @default(true)
@@ -30,11 +30,31 @@ model User {
   activityLogs     ActivityLog[]
   comments         Comment[]
   notifications    Notification[]
+  sessions         Session[]
+  deletedAt        DateTime?
+  deletedById      Int?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
   @@index([role])
   @@index([departmentId])
+  @@index([deletedAt])
+}
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           Int
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String
+  ipAddress        String?
+  userAgent        String?
+  revokedAt        DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  lastUsedAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([refreshTokenHash])
 }
 
 model Department {
@@ -72,6 +92,8 @@ model Task {
   submissions    TaskSubmission[]
   comments       Comment[]
   isDeleted      Boolean          @default(false)
+  deletedAt      DateTime?
+  deletedById    Int?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -79,6 +101,7 @@ model Task {
   @@index([departmentId])
   @@index([assignedToId])
   @@index([deadline])
+  @@index([deletedAt])
 }
 
 model TaskSubmission {
@@ -101,10 +124,13 @@ model TaskSubmission {
   submittedAt          DateTime  @default(now())
   reviewedAt           DateTime?
   isDeleted            Boolean   @default(false)
+  deletedAt            DateTime?
+  deletedById          Int?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
   @@index([reviewStatus])
+  @@index([deletedAt])
 }
 
 model DailyReport {
@@ -126,32 +152,41 @@ model DailyReport {
   reviewedBy      User?    @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
   isDeleted       Boolean  @default(false)
+  deletedAt       DateTime?
+  deletedById     Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([reportDate])
   @@index([departmentId])
+  @@index([deletedAt])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  title     String
-  message   String
-  isRead    Boolean  @default(false)
-  type       String   // e.g. task_assigned, employee_created
-  entityType String?  // e.g. User, Task, DailyReport
-  entityId   Int?     // the ID of the entity
-  createdAt  DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  title       String
+  message     String
+  isRead      Boolean  @default(false)
+  type        String   // e.g. task_assigned, employee_created
+  entityType  String?  // e.g. User, Task, DailyReport
+  entityId    Int?     // the ID of the entity
+  deletedAt   DateTime?
+  deletedById Int?
+  createdAt   DateTime @default(now())
 
   @@index([createdAt])
+  @@index([userId])
+  @@index([deletedAt])
 }
 
 model ActivityLog {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  actorType   String   @default("staff") // staff, client, system
+  actorName   String?
   action      String
   entityType  String?
   entityId    Int?
@@ -160,9 +195,12 @@ model ActivityLog {
   ipAddress   String?
   userAgent   String?
   isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  deletedById Int?
   createdAt   DateTime @default(now())
 
   @@index([createdAt])
+  @@index([entityType, entityId])
 }
 
 model Comment {

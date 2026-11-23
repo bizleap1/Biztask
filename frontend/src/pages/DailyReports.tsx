@@ -57,18 +57,6 @@ export default function DailyReports() {
     }
   };
 
-  const handleClearAll = async () => {
-    if (!window.confirm('Are you sure you want to delete all currently visible reports?')) return;
-    const ids = reports.map(r => r.id);
-    try {
-      await dailyReportService.bulkDeleteReports(ids);
-      setSelectedIds([]);
-      fetchReports();
-    } catch (error) {
-      console.error('Failed to clear reports', error);
-    }
-  };
-
   const handleDeleteSingle = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this report?')) return;
     try {
@@ -214,14 +202,6 @@ export default function DailyReports() {
               className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center gap-2"
             >
               <Trash2 size={16} /> Delete Selected ({selectedIds.length})
-            </button>
-          )}
-          {reports.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
-            >
-              <Trash2 size={16} /> Clear All
             </button>
           )}
         </div>

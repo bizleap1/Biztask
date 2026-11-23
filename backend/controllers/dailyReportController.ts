@@ -93,7 +93,7 @@ export const getAllReports = async (req: AuthRequest, res: Response) => {
     const { employeeId, departmentId, status, startDate, endDate } = req.query;
     const { role, departmentId: userDeptId } = req.user!;
 
-    let whereClause: any = { isDeleted: false };
+    let whereClause: any = { isDeleted: false, deletedAt: null };
 
     // Managers and SuperAdmins can see all departments
     if (departmentId) {
@@ -147,7 +147,7 @@ export const getAllReports = async (req: AuthRequest, res: Response) => {
 export const getMyReports = async (req: AuthRequest, res: Response) => {
   try {
     const reports = await prisma.dailyReport.findMany({
-      where: { userId: req.user!.id, isDeleted: false },
+      where: { userId: req.user!.id, isDeleted: false, deletedAt: null },
       include: {
         department: { select: { id: true, name: true } },
         reviewedBy: { select: { id: true, name: true } }
@@ -178,10 +178,20 @@ export const getReportById = async (req: AuthRequest, res: Response) => {
 
     if (!report) return res.status(404).json({ message: 'Report not found' });
 
-    // Authorization
+    // Authorization (IDOR protection)
     const { id, role, departmentId } = req.user!;
-    if (role === 'Viewer') return res.status(403).json({ message: 'Forbidden' });
-    if (role !== 'SuperAdmin' && role !== 'Manager' && report.userId !== id) return res.status(403).json({ message: 'Forbidden' });
+    if (role === 'Viewer') return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    if (role !== 'SuperAdmin') {
+      if (role === 'Manager') {
+        if (report.departmentId && departmentId && report.departmentId !== departmentId) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not authorized to view reports outside your department' } });
+        }
+      } else {
+        if (report.userId !== id) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not authorized to view another employee\'s report' } });
+        }
+      }
+    }
 
     res.json(report);
   } catch (error) {
@@ -319,12 +329,30 @@ export const markNeedsCorrection = async (req: AuthRequest, res: Response) => {
 // @access  Private
 export const deleteReport = async (req: AuthRequest, res: Response) => {
   try {
-    const report = await prisma.dailyReport.findUnique({ where: { id: Number(req.params.id) } });
+    const reportId = Number(req.params.id);
+    const report = await prisma.dailyReport.findUnique({ where: { id: reportId } });
     if (!report) return res.status(404).json({ message: 'Report not found' });
     if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager' && report.userId !== req.user!.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
-    await prisma.dailyReport.update({ where: { id: Number(req.params.id) }, data: { isDeleted: true } });
+    await prisma.dailyReport.update({ 
+      where: { id: reportId }, 
+      data: { 
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      } 
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'DAILY_REPORT_DELETED',
+      entityType: 'DailyReport',
+      entityId: reportId,
+      description: `Soft-deleted daily report ID ${reportId}`,
+      req
+    });
+
     res.json({ message: 'Report deleted successfully' });
   } catch (error) {
     console.error(error);
@@ -332,20 +360,40 @@ export const deleteReport = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// @desc    Bulk delete reports
+// @desc    Bulk delete reports (max 100)
 // @route   DELETE /api/daily-reports/bulk
 // @access  Private
 export const bulkDeleteReports = async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
-    let whereClause: any = {};
-    if (ids && Array.isArray(ids) && ids.length > 0) {
-      whereClause.id = { in: ids };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No report IDs provided' });
     }
+    if (ids.length > 100) {
+      return res.status(400).json({ message: 'Cannot bulk delete more than 100 reports at once' });
+    }
+
+    let whereClause: any = { id: { in: ids } };
     if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
       whereClause.userId = req.user!.id;
     }
-    const deleted = await prisma.dailyReport.updateMany({ where: whereClause, data: { isDeleted: true } });
+    const deleted = await prisma.dailyReport.updateMany({ 
+      where: whereClause, 
+      data: { 
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: req.user!.id
+      } 
+    });
+
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'DAILY_REPORT_BULK_DELETED',
+      entityType: 'DailyReport',
+      description: `Soft-deleted ${deleted.count} daily reports`,
+      req
+    });
+
     res.json({ message: `${deleted.count} reports deleted successfully` });
   } catch (error) {
     console.error(error);

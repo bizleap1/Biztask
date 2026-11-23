@@ -1,29 +1,111 @@
 import { Request, Response } from 'express';
-import { AuthRequest } from '../middleware/authMiddleware';
+import { AuthRequest, hashToken } from '../middleware/authMiddleware';
 import { createNotification } from '../utils/notificationUtils';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { createActivityLog } from '../utils/activityLogUtils';
-
 import prisma from '../prismaClient';
 
-const generateToken = (id: number) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
-    expiresIn: '30d',
+const ACCESS_EXPIRES_IN = '15m';
+const REFRESH_EXPIRES_DAYS = 7;
+
+const getAccessSecret = () => process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'biztask_access_secret_fallback';
+const getRefreshSecret = () => process.env.JWT_REFRESH_SECRET || 'biztask_refresh_secret_fallback';
+
+const generateTokens = (userId: number, sessionId: string) => {
+  const accessToken = jwt.sign({ id: userId, sessionId }, getAccessSecret(), {
+    expiresIn: ACCESS_EXPIRES_IN,
   });
+
+  const refreshToken = jwt.sign({ id: userId, sessionId }, getRefreshSecret(), {
+    expiresIn: `${REFRESH_EXPIRES_DAYS}d`,
+  });
+
+  return { accessToken, refreshToken };
+};
+
+const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+
+  // 15 minutes access cookie
+  res.cookie('access_token', accessToken, {
+    ...cookieOptions,
+    maxAge: 15 * 60 * 1000,
+  });
+
+  // 7 days refresh cookie
+  res.cookie('refresh_token', refreshToken, {
+    ...cookieOptions,
+    maxAge: REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
+  });
+
+  // Backward compatibility alias for existing code
+  res.cookie('token', accessToken, {
+    ...cookieOptions,
+    maxAge: 15 * 60 * 1000,
+  });
+};
+
+const clearAuthCookies = (res: Response) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+
+  res.clearCookie('access_token', cookieOptions);
+  res.clearCookie('refresh_token', cookieOptions);
+  res.clearCookie('token', cookieOptions);
 };
 
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+      where: { email, deletedAt: null }
+    });
 
     if (user && (await bcrypt.compare(password, user.password))) {
       if (!user.isActive) {
         return res.status(401).json({ message: 'Your account is inactive. Please contact admin.' });
       }
 
+      // Create session record in database
+      const sessionId = crypto.randomUUID();
+      const { accessToken, refreshToken } = generateTokens(user.id, sessionId);
+      const refreshTokenHash = hashToken(refreshToken);
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + REFRESH_EXPIRES_DAYS);
+
+      await prisma.session.create({
+        data: {
+          id: sessionId,
+          userId: user.id,
+          refreshTokenHash,
+          ipAddress: req.ip || null,
+          userAgent: req.headers['user-agent'] || null,
+          expiresAt,
+        }
+      });
+
+      // Set hardened httpOnly cookies
+      setAuthCookies(res, accessToken, refreshToken);
+
+      // Log activity
       createActivityLog({
         userId: user.id,
         action: 'LOGIN',
@@ -33,14 +115,7 @@ export const login = async (req: Request, res: Response) => {
         req
       }).catch(err => console.error('Failed to create activity log:', err));
 
-      const token = generateToken(user.id);
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-      });
-
+      // Return clean user DTO without password
       res.json({
         id: user.id,
         name: user.name,
@@ -50,18 +125,141 @@ export const login = async (req: Request, res: Response) => {
         designation: user.designation,
         status: user.isActive ? 'Active' : 'Inactive',
         mustChangePassword: user.mustChangePassword,
-        token: token,
+        token: accessToken, // for backward compatibility
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
-    console.error(error);
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Setup initial admin if no users exist
+export const refreshSession = async (req: Request, res: Response) => {
+  try {
+    const refreshToken = req.cookies.refresh_token;
+    if (!refreshToken) {
+      return res.status(401).json({ message: 'No refresh token provided' });
+    }
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, getRefreshSecret());
+    } catch (err) {
+      clearAuthCookies(res);
+      return res.status(401).json({ message: 'Invalid or expired refresh token' });
+    }
+
+    const currentHash = hashToken(refreshToken);
+    const session = await prisma.session.findFirst({
+      where: {
+        id: decoded.sessionId,
+        refreshTokenHash: currentHash,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      include: { user: true }
+    });
+
+    if (!session || !session.user || !session.user.isActive || session.user.deletedAt !== null) {
+      clearAuthCookies(res);
+      return res.status(401).json({ message: 'Session revoked or invalid' });
+    }
+
+    // Refresh rotation: generate new access and refresh tokens
+    const newTokens = generateTokens(session.userId, session.id);
+    const newHash = hashToken(newTokens.refreshToken);
+
+    await prisma.session.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: newHash,
+        lastUsedAt: new Date(),
+      }
+    });
+
+    setAuthCookies(res, newTokens.accessToken, newTokens.refreshToken);
+
+    res.json({
+      message: 'Session refreshed',
+      token: newTokens.accessToken,
+      user: {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        role: session.user.role,
+        departmentId: session.user.departmentId,
+      }
+    });
+  } catch (error) {
+    console.error('Refresh error:', error);
+    res.status(500).json({ message: 'Failed to refresh session' });
+  }
+};
+
+export const logout = async (req: AuthRequest, res: Response) => {
+  try {
+    const refreshToken = req.cookies.refresh_token;
+    if (refreshToken) {
+      const currentHash = hashToken(refreshToken);
+      await prisma.session.updateMany({
+        where: { refreshTokenHash: currentHash },
+        data: { revokedAt: new Date() }
+      });
+    }
+
+    if (req.sessionId) {
+      await prisma.session.updateMany({
+        where: { id: req.sessionId },
+        data: { revokedAt: new Date() }
+      });
+    }
+
+    clearAuthCookies(res);
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    clearAuthCookies(res);
+    res.json({ message: 'Logged out' });
+  }
+};
+
+export const logoutAllDevices = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    await prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+
+    clearAuthCookies(res);
+
+    await createActivityLog({
+      userId,
+      action: 'LOGOUT_ALL_DEVICES',
+      entityType: 'User',
+      entityId: userId,
+      description: `${req.user!.name} logged out of all devices`,
+      actorType: 'User',
+      actorName: req.user!.name
+    });
+
+    res.json({ message: 'Logged out of all devices successfully' });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    clearAuthCookies(res);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const getMe = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Not authenticated' });
+  }
+  res.json({ user: req.user });
+};
+
 export const setup = async (req: Request, res: Response) => {
   try {
     const setupSecret = req.headers['x-setup-secret'];
@@ -69,13 +267,17 @@ export const setup = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized setup request' });
     }
 
-    const superAdminCount = await prisma.user.count({ where: { role: 'SuperAdmin' } });
+    const superAdminCount = await prisma.user.count({ where: { role: 'SuperAdmin', deletedAt: null } });
     if (superAdminCount > 0) {
       return res.status(400).json({ message: 'SuperAdmin already exists' });
     }
 
     const { name, email, password } = req.body;
-    const salt = await bcrypt.genSalt(10);
+    if (!password || password.length < 10) {
+      return res.status(400).json({ message: 'Password must be at least 10 characters long' });
+    }
+
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await prisma.user.create({
@@ -87,23 +289,29 @@ export const setup = async (req: Request, res: Response) => {
       },
     });
 
-    const token = generateToken(user.id);
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    const sessionId = crypto.randomUUID();
+    const { accessToken, refreshToken } = generateTokens(user.id, sessionId);
+
+    await prisma.session.create({
+      data: {
+        id: sessionId,
+        userId: user.id,
+        refreshTokenHash: hashToken(refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000),
+      }
     });
+
+    setAuthCookies(res, accessToken, refreshToken);
 
     res.status(201).json({
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      token: token,
+      token: accessToken,
     });
   } catch (error) {
-    console.error(error);
+    console.error('Setup error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -115,25 +323,35 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: 'Not authenticated' });
     }
-    
+
+    if (!newPassword || newPassword.length < 10) {
+      return res.status(400).json({ message: 'New password must be at least 10 characters long' });
+    }
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Incorrect old password' });
     }
-    
-    const salt = await bcrypt.genSalt(10);
+
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
-    
+
     await prisma.user.update({
       where: { id: userId },
       data: { password: hashedPassword, mustChangePassword: false }
     });
-    
+
+    // Revoke other existing sessions upon password change for security
+    await prisma.session.updateMany({
+      where: { userId, id: { not: req.sessionId } },
+      data: { revokedAt: new Date() }
+    });
+
     await createActivityLog({
       userId,
       action: 'PASSWORD_CHANGED',
@@ -145,7 +363,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error(error);
+    console.error('Change password error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -153,8 +371,9 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
 export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-    
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -169,7 +388,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     });
 
     const admins = await prisma.user.findMany({
-      where: { role: 'SuperAdmin' }
+      where: { role: 'SuperAdmin', deletedAt: null }
     });
 
     for (const admin of admins) {
@@ -185,7 +404,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
     res.json({ message: 'Password reset request sent to admin.' });
   } catch (error) {
-    console.error(error);
+    console.error('Request password reset error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -193,8 +412,11 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 export const executePasswordReset = async (req: Request, res: Response) => {
   try {
     const { email, newPassword } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-    
+    if (!newPassword || newPassword.length < 10) {
+      return res.status(400).json({ message: 'New password must be at least 10 characters long' });
+    }
+
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -203,7 +425,8 @@ export const executePasswordReset = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Password reset not approved by admin.' });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     await prisma.user.update({
       where: { email },
@@ -214,17 +437,15 @@ export const executePasswordReset = async (req: Request, res: Response) => {
       }
     });
 
-    res.json({ message: 'Password updated successfully.' });
-  } catch (error) {
-    console.error(error);
-  }
-};
+    // Revoke all existing sessions for this user
+    await prisma.session.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
 
-export const logout = (req: Request, res: Response) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
-  res.json({ message: 'Logged out successfully' });
+    res.json({ message: 'Password updated successfully. Please log in.' });
+  } catch (error) {
+    console.error('Execute password reset error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 };

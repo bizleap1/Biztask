@@ -1,0 +1,15 @@
+{
+  "name": "biztask",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Biztask Operations Portal",
+  "scripts": {
+    "dev": "npm run dev:backend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:all": "npx --yes concurrently -k -n \"backend,frontend\" -c \"blue,green\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "build:backend": "npm run build --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "build": "npm run build:backend && npm run build:frontend"
+  }
+}

@@ -12,12 +12,14 @@ import {
 } from '../controllers/dailyReportController';
 import { protect } from '../middleware/authMiddleware';
 import { authorizeRoles } from '../middleware/roleMiddleware';
+import { validateRequest } from '../middleware/validationMiddleware';
+import { createReportSchema, reviewReportSchema } from '../schemas';
 
 const router = express.Router();
 
 // Base routes
 router.route('/')
-  .post(protect, authorizeRoles('DevEmployee', 'MediaEmployee', 'SuperAdmin', 'Manager'), submitReport as any)
+  .post(protect, authorizeRoles('DevEmployee', 'MediaEmployee', 'SuperAdmin', 'Manager'), validateRequest({ body: createReportSchema }), submitReport as any)
   .get(protect, authorizeRoles('SuperAdmin', 'Manager'), getAllReports as any);
 
 router.get('/my', protect, getMyReports as any);
@@ -31,7 +33,7 @@ router.route('/:id')
   .delete(protect, deleteReport as any);
 
 // Manager actions
-router.patch('/:id/review', protect, authorizeRoles('SuperAdmin', 'Manager'), reviewReport as any);
+router.patch('/:id/review', protect, authorizeRoles('SuperAdmin', 'Manager'), validateRequest({ body: reviewReportSchema }), reviewReport as any);
 router.patch('/:id/needs-correction', protect, authorizeRoles('SuperAdmin', 'Manager'), markNeedsCorrection as any);
 
 export default router;
