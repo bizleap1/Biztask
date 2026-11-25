@@ -48,4 +48,9 @@ export const clearSystemData = async () => {
   return response.data;
 };
 
+export const generateContentCalendar = async (promptData: any) => {
+  const response = await api.post('/ai/generate-calendar', promptData);
+  return response.data;
+};
+
 export default api;

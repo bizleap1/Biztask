@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { parseTask } from '../controllers/aiController';
+import { parseTask, generateCalendar } from '../controllers/aiController';
 import { protect } from '../middleware/authMiddleware';
 import { authorizeRoles } from '../middleware/roleMiddleware';
 
@@ -22,9 +22,15 @@ const upload = multer({
 router.post(
   '/parse-task',
   protect,
-  authorizeRoles('SuperAdmin', 'Manager', 'DevEmployee', 'MediaEmployee'),
+  authorizeRoles('SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee'),
   upload.single('audio'),
   parseTask
+);
+router.post(
+  '/generate-calendar',
+  protect,
+  authorizeRoles('SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee'),
+  generateCalendar
 );
 
 export default router;

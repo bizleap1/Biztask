@@ -14,6 +14,7 @@ import DailyReports from './pages/DailyReports';
 import Notifications from './pages/Notifications';
 import ActivityLogs from './pages/ActivityLogs';
 import Teams from './pages/Teams';
+import ContentCalendar from './pages/ContentCalendar';
 import { AuthGuard } from './components/AuthGuard';
 
 function App() {
@@ -80,6 +81,11 @@ function App() {
           </AuthGuard>
         } />
 
+        <Route path="content-calendar" element={
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'MediaEmployee', 'Employee']}>
+            <ContentCalendar />
+          </AuthGuard>
+        } />
         <Route path="settings" element={
           <AuthGuard allowedRoles={['SuperAdmin']}>
             <div className="p-4 bg-white rounded-xl shadow-pepper">Settings Feature Coming Soon</div>

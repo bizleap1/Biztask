@@ -1,8 +1,10 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
@@ -16,8 +18,6 @@ import uploadRoutes from './routes/uploadRoutes';
 import systemRoutes from './routes/systemRoutes';
 import aiRoutes from './routes/aiRoutes';
 import teamRoutes from './routes/teamRoutes';
-
-dotenv.config();
 
 const app = express();
 import prisma from './prismaClient';

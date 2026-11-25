@@ -74,3 +74,59 @@ export const parseTask = async (req: Request, res: Response) => {
     res.status(500).json({ message: error.message || 'Internal server error.' });
   }
 };
+
+export const generateCalendar = async (req: Request, res: Response) => {
+  try {
+    const { clientName, promotionDetails, numPosts, platforms } = req.body;
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ message: 'Gemini API key is not configured.' });
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+    const prompt = `You are an expert Social Media Manager. Create a detailed content calendar for a client.
+    Client/Brand: ${clientName}
+    Promotion/Goal: ${promotionDetails}
+    Number of posts required: ${numPosts}
+    Target Platforms: ${platforms.join(', ')}
+    
+    Please generate ${numPosts} highly engaging posts spaced out logically.
+    For the "date" field, use dates in the near future in "YYYY-MM-DD" format.
+    Format your response EXACTLY as the required JSON schema.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-flash-latest',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+              platform: { type: Type.STRING, description: 'The social media platform' },
+              type: { type: Type.STRING, description: 'Format (e.g. Reel, Carousel, Static Post)' },
+              topic: { type: Type.STRING, description: 'Short catchy headline or topic for the post' },
+              content: { type: Type.STRING, description: 'Detailed description of the post content' },
+              objective: { type: Type.STRING, description: 'The primary goal (e.g., Build Trust, Brand Awareness)' },
+              visualIdea: { type: Type.STRING, description: 'Visual idea, reference, or CTA for the post' }
+            },
+            required: ['date', 'platform', 'type', 'topic', 'content', 'objective', 'visualIdea']
+          }
+        },
+      },
+    });
+
+    if (response.text) {
+      const parsedData = JSON.parse(response.text);
+      res.json(parsedData);
+    } else {
+      res.status(500).json({ message: 'Failed to generate calendar.' });
+    }
+  } catch (error: any) {
+    console.error('Error generating calendar:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};

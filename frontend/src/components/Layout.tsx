@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X } from 'lucide-react';
+import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo';
 import api from '../services/api';
@@ -72,6 +72,11 @@ export default function Layout() {
                 <FileText size={18} /> Daily Reports
               </Link>
             </>
+          )}
+          {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'MediaEmployee' || user.role === 'Employee') && (
+            <Link to="/content-calendar" className={getLinkClass('/content-calendar')} onClick={() => setSidebarOpen(false)}>
+              <Calendar size={18} /> Content Calendar
+            </Link>
           )}
           {(user.role === 'Employee' || user.role === 'DevEmployee' || user.role === 'MediaEmployee' || user.role === 'TeamLead') && (
             <>
