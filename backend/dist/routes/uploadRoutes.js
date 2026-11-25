@@ -22,22 +22,40 @@ const upload = (0, multer_1.default)({
         }
     }
 });
-router.post('/', authMiddleware_1.protect, upload.single('file'), async (req, res) => {
+router.post('/', authMiddleware_1.protect, upload.array('files'), async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ message: 'No file uploaded' });
+        const files = req.files;
+        if (!files || files.length === 0) {
+            return res.status(400).json({ message: 'No files uploaded' });
         }
-        const { url, path } = await (0, supabaseStorage_1.uploadFileToSupabase)(req.file.buffer, req.file.originalname, req.file.mimetype);
+        const uploadPromises = files.map(file => (0, supabaseStorage_1.uploadFileToSupabase)(file.buffer, file.originalname, file.mimetype));
+        const results = await Promise.all(uploadPromises);
         res.status(200).json({
-            url,
-            path,
-            fileName: req.file.originalname,
-            message: 'File uploaded successfully'
+            files: results.map((result, index) => ({
+                url: result.url,
+                path: result.path,
+                fileName: files[index].originalname
+            })),
+            message: 'Files uploaded successfully'
         });
     }
     catch (error) {
         console.error('File Upload Error:', error);
-        res.status(500).json({ message: error.message || 'Failed to upload file' });
+        res.status(500).json({ message: error.message || 'Failed to upload files' });
+    }
+});
+router.get('/signed-url', authMiddleware_1.protect, async (req, res) => {
+    try {
+        const filePath = req.query.path;
+        if (!filePath || filePath.includes('..')) {
+            return res.status(400).json({ message: 'Valid file path is required' });
+        }
+        const url = await (0, supabaseStorage_1.getSignedFileUrl)(filePath, 3600);
+        res.json({ url });
+    }
+    catch (error) {
+        console.error('Signed URL Error:', error);
+        res.status(500).json({ message: 'Failed to generate signed URL' });
     }
 });
 exports.default = router;

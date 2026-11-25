@@ -11,40 +11,57 @@ import prisma from '../prismaClient';
 export const submitTask = async (req: AuthRequest, res: Response) => {
   try {
     const taskId = Number(req.params.id);
+    if (isNaN(taskId)) return res.status(400).json({ message: 'Invalid task ID' });
+
     const { reportText, proofUrl, proofFileName, proofType, completionPercentage, blockers, notes } = req.body;
     const userId = req.user!.id;
 
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    if (!reportText || typeof reportText !== 'string' || !reportText.trim()) {
+      return res.status(400).json({ message: 'Report text is required' });
+    }
+
+    const task = await prisma.task.findFirst({ where: { id: taskId, isDeleted: false } });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
     if (task.assignedToId !== userId) {
       return res.status(403).json({ message: 'You can only submit tasks assigned to you' });
     }
 
+    if (task.status === 'Approved') {
+      return res.status(400).json({ message: 'Cannot submit an already approved task' });
+    }
+
     if (task.proofRequired && (!proofUrl && !proofFileName)) {
       return res.status(400).json({ message: 'Proof is required for this task' });
     }
 
-    // Create Submission
-    const submission = await prisma.taskSubmission.create({
-      data: {
-        taskId,
-        userId,
-        reportText,
-        proofUrl,
-        proofFileName,
-        proofType,
-        completionPercentage: Number(completionPercentage),
-        blockers,
-        notes,
-        reviewStatus: 'Pending Review'
-      }
-    });
+    const parsedPct = completionPercentage !== undefined && completionPercentage !== '' && !isNaN(Number(completionPercentage))
+      ? Math.min(100, Math.max(0, Number(completionPercentage)))
+      : 100;
 
-    // Update Task Status
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { status: 'Submitted' }
+    // Create Submission and update Task status atomically
+    const submission = await prisma.$transaction(async (tx) => {
+      const created = await tx.taskSubmission.create({
+        data: {
+          taskId,
+          userId,
+          reportText,
+          proofUrl,
+          proofFileName,
+          proofType,
+          completionPercentage: parsedPct,
+          blockers,
+          notes,
+          reviewStatus: 'Pending Review'
+        }
+      });
+
+      await tx.task.update({
+        where: { id: taskId },
+        data: { status: 'Submitted' }
+      });
+
+      return created;
     });
 
     await createActivityLog({
@@ -89,28 +106,34 @@ export const submitTask = async (req: AuthRequest, res: Response) => {
 export const approveSubmission = async (req: AuthRequest, res: Response) => {
   try {
     const submissionId = Number(req.params.id);
+    if (isNaN(submissionId)) return res.status(400).json({ message: 'Invalid submission ID' });
     const reviewerId = req.user!.id;
 
-    const submission = await prisma.taskSubmission.findUnique({ 
-      where: { id: submissionId },
+    const submission = await prisma.taskSubmission.findFirst({ 
+      where: { id: submissionId, isDeleted: false },
       include: { task: true }
     });
-    if (!submission) return res.status(404).json({ message: 'Submission not found' });
+    if (!submission || submission.task.isDeleted) return res.status(404).json({ message: 'Submission not found' });
+    if (submission.reviewStatus !== 'Pending Review') {
+      return res.status(400).json({ message: `Submission is already ${submission.reviewStatus}` });
+    }
 
-    // Update Submission
-    const updatedSubmission = await prisma.taskSubmission.update({
-      where: { id: submissionId },
-      data: {
-        reviewStatus: 'Approved',
-        reviewedById: reviewerId,
-        reviewedAt: new Date()
-      }
-    });
+    const updatedSubmission = await prisma.$transaction(async (tx) => {
+      const updated = await tx.taskSubmission.update({
+        where: { id: submissionId },
+        data: {
+          reviewStatus: 'Approved',
+          reviewedById: reviewerId,
+          reviewedAt: new Date()
+        }
+      });
 
-    // Update Task
-    await prisma.task.update({
-      where: { id: submission.taskId },
-      data: { status: 'Approved' }
+      await tx.task.update({
+        where: { id: submission.taskId },
+        data: { status: 'Approved' }
+      });
+
+      return updated;
     });
 
     await createActivityLog({
@@ -144,6 +167,7 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
 export const rejectSubmission = async (req: AuthRequest, res: Response) => {
   try {
     const submissionId = Number(req.params.id);
+    if (isNaN(submissionId)) return res.status(400).json({ message: 'Invalid submission ID' });
     const { managerFeedback } = req.body;
     const reviewerId = req.user!.id;
 
@@ -151,27 +175,32 @@ export const rejectSubmission = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Feedback is required to reject a task' });
     }
 
-    const submission = await prisma.taskSubmission.findUnique({ 
-      where: { id: submissionId },
+    const submission = await prisma.taskSubmission.findFirst({ 
+      where: { id: submissionId, isDeleted: false },
       include: { task: true }
     });
-    if (!submission) return res.status(404).json({ message: 'Submission not found' });
+    if (!submission || submission.task.isDeleted) return res.status(404).json({ message: 'Submission not found' });
+    if (submission.reviewStatus !== 'Pending Review') {
+      return res.status(400).json({ message: `Submission is already ${submission.reviewStatus}` });
+    }
 
-    // Update Submission
-    const updatedSubmission = await prisma.taskSubmission.update({
-      where: { id: submissionId },
-      data: {
-        reviewStatus: 'Rejected',
-        managerFeedback,
-        reviewedById: reviewerId,
-        reviewedAt: new Date()
-      }
-    });
+    const updatedSubmission = await prisma.$transaction(async (tx) => {
+      const updated = await tx.taskSubmission.update({
+        where: { id: submissionId },
+        data: {
+          reviewStatus: 'Rejected',
+          managerFeedback,
+          reviewedById: reviewerId,
+          reviewedAt: new Date()
+        }
+      });
 
-    // Update Task Status back to Rejected
-    await prisma.task.update({
-      where: { id: submission.taskId },
-      data: { status: 'Rejected' }
+      await tx.task.update({
+        where: { id: submission.taskId },
+        data: { status: 'Rejected' }
+      });
+
+      return updated;
     });
 
     await createActivityLog({
@@ -206,7 +235,11 @@ export const getPendingSubmissions = async (req: AuthRequest, res: Response) => 
   try {
     const { role, departmentId, id } = req.user!;
     
-    let whereClause: any = { reviewStatus: 'Pending Review', isDeleted: false };
+    let whereClause: any = {
+      reviewStatus: 'Pending Review',
+      isDeleted: false,
+      task: { isDeleted: false }
+    };
     
     if (role === 'Manager') {
       // Manager sees all pending submissions
@@ -253,11 +286,16 @@ export const deleteSubmission = async (req: AuthRequest, res: Response) => {
 // @access  Private
 export const bulkDeleteSubmissions = async (req: AuthRequest, res: Response) => {
   try {
-    const { ids } = req.body;
-    let whereClause: any = {};
-    if (ids && Array.isArray(ids) && ids.length > 0) {
-      whereClause.id = { in: ids };
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'A non-empty array of submission IDs is required' });
     }
+    const numericIds = ids.map(Number).filter(n => !isNaN(n));
+    if (numericIds.length === 0) {
+      return res.status(400).json({ message: 'Valid submission IDs are required' });
+    }
+
+    const whereClause: any = { id: { in: numericIds }, isDeleted: false };
     if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
       whereClause.userId = req.user!.id;
     }

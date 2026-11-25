@@ -85,6 +85,7 @@ export default function DailyReports() {
   };
 
   const openFeedbackModal = (report: any, type: 'review' | 'needs-correction') => {
+    setShowViewModal(false);
     setSelectedReport(report);
     setFeedbackType(type);
     setFeedback('');
@@ -397,14 +398,38 @@ export default function DailyReports() {
               {selectedReport.attachments && (
                 <div>
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-2">Attachments</h3>
-                  <a 
-                    href={selectedReport.attachments} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800"
-                  >
-                    View Attached Proof ↗
-                  </a>
+                  <div className="flex flex-col gap-1">
+                    {(() => {
+                      try {
+                        const urls = JSON.parse(selectedReport.attachments);
+                        if (Array.isArray(urls)) {
+                          return urls.map((u: string, i: number) => (
+                            <a
+                              key={i}
+                              href={u}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800"
+                            >
+                              View Attached Proof {i + 1} ↗
+                            </a>
+                          ));
+                        }
+                      } catch (e) {
+                        // Fallback for single URL string
+                      }
+                      return (
+                        <a
+                          href={selectedReport.attachments}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800"
+                        >
+                          View Attached Proof ↗
+                        </a>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>

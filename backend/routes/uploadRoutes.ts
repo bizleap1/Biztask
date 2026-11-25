@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { uploadFileToSupabase } from '../utils/supabaseStorage';
+import { uploadFileToSupabase, getSignedFileUrl } from '../utils/supabaseStorage';
 import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -43,6 +43,20 @@ router.post('/', protect, upload.array('files'), async (req, res) => {
   } catch (error: any) {
     console.error('File Upload Error:', error);
     res.status(500).json({ message: error.message || 'Failed to upload files' });
+  }
+});
+
+router.get('/signed-url', protect, async (req, res) => {
+  try {
+    const filePath = req.query.path as string;
+    if (!filePath || filePath.includes('..')) {
+      return res.status(400).json({ message: 'Valid file path is required' });
+    }
+    const url = await getSignedFileUrl(filePath, 3600);
+    res.json({ url });
+  } catch (error: any) {
+    console.error('Signed URL Error:', error);
+    res.status(500).json({ message: 'Failed to generate signed URL' });
   }
 });
 

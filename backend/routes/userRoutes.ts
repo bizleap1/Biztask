@@ -18,7 +18,7 @@ const router = express.Router();
 router.get('/departments', protect, getDepartments as any);
 
 router.route('/')
-  .get(protect, authorizeRoles('SuperAdmin', 'Manager', 'DevEmployee', 'MediaEmployee'), getUsers as any)
+  .get(protect, authorizeRoles('SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee'), getUsers as any)
   .post(protect, authorizeRoles('SuperAdmin', 'Manager'), createUser as any);
 
 router.route('/:id')

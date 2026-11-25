@@ -179,11 +179,32 @@ export default function ReviewSubmissions() {
                   </div>
 
                   {sub.proofUrl && (
-                    <div className="mb-3 flex items-center gap-2">
-                      <Eye size={16} className="text-gray-400" />
-                      <a href={sub.proofUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[var(--color-brand-black)] hover:underline">
-                        View Proof {sub.proofType && `(${sub.proofType})`}
-                      </a>
+                    <div className="mb-3 space-y-1">
+                      {(() => {
+                        try {
+                          const urls = JSON.parse(sub.proofUrl);
+                          if (Array.isArray(urls)) {
+                            return urls.map((u: string, i: number) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <Eye size={16} className="text-gray-400" />
+                                <a href={u} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[var(--color-brand-black)] hover:underline">
+                                  View Proof {i + 1} {sub.proofType && `(${sub.proofType})`}
+                                </a>
+                              </div>
+                            ));
+                          }
+                        } catch (e) {
+                          // Fallback for single URL string
+                        }
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Eye size={16} className="text-gray-400" />
+                            <a href={sub.proofUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[var(--color-brand-black)] hover:underline">
+                              View Proof {sub.proofType && `(${sub.proofType})`}
+                            </a>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 

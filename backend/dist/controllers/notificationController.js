@@ -141,9 +141,11 @@ const checkDeadlines = async (req, res) => {
         // 1. Approaching deadlines
         const approachingTasks = await prismaClient_1.default.task.findMany({
             where: {
+                isDeleted: false,
                 deadline: { gt: now, lte: next24h },
                 status: { notIn: ['Approved', 'Completed'] },
-                assignedToId: { not: null }
+                assignedToId: { not: null },
+                assignedTo: { isActive: true }
             }
         });
         for (const task of approachingTasks) {
@@ -170,9 +172,11 @@ const checkDeadlines = async (req, res) => {
         // 2. Overdue tasks
         const overdueTasks = await prismaClient_1.default.task.findMany({
             where: {
+                isDeleted: false,
                 deadline: { lt: now },
                 status: { notIn: ['Approved', 'Completed'] },
-                assignedToId: { not: null }
+                assignedToId: { not: null },
+                assignedTo: { isActive: true }
             }
         });
         for (const task of overdueTasks) {

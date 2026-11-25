@@ -1,21 +1,54 @@
 import { Request, Response } from 'express';
-import { AuthRequest } from '../middleware/authMiddleware';
+import crypto from 'crypto';
+import { AuthRequest, getJwtSecret } from '../middleware/authMiddleware';
 import { createNotification } from '../utils/notificationUtils';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { createActivityLog } from '../utils/activityLogUtils';
 
 import prisma from '../prismaClient';
 
-const generateToken = (id: number) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
+const loginSchema = z.object({
+  email: z.string().email('Valid email is required'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1, 'Old password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+});
+
+const emailSchema = z.object({
+  email: z.string().email('Valid email is required'),
+});
+
+const executeResetSchema = z.object({
+  email: z.string().email('Valid email is required'),
+  resetCode: z.string().min(4, 'Reset code is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+});
+
+const googleAuthSchema = z.object({
+  idToken: z.string().min(10, 'Google ID token is required'),
+});
+
+const hashResetCode = (code: string): string =>
+  crypto.createHash('sha256').update(code.trim().toUpperCase()).digest('hex');
+
+const generateToken = (id: number, tokenVersion = 0) => {
+  return jwt.sign({ id, tv: tokenVersion }, getJwtSecret(), {
     expiresIn: '30d',
   });
 };
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid input' });
+    }
+    const { email, password } = parsed.data;
 
     const user = await prisma.user.findUnique({ where: { email } });
 
@@ -33,7 +66,7 @@ export const login = async (req: Request, res: Response) => {
         req
       }).catch(err => console.error('Failed to create activity log:', err));
 
-      const token = generateToken(user.id);
+      const token = generateToken(user.id, user.tokenVersion ?? 0);
       res.cookie('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -87,7 +120,7 @@ export const setup = async (req: Request, res: Response) => {
       },
     });
 
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.tokenVersion ?? 0);
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -110,7 +143,11 @@ export const setup = async (req: Request, res: Response) => {
 
 export const changePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { oldPassword, newPassword } = req.body;
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid input' });
+    }
+    const { oldPassword, newPassword } = parsed.data;
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Not authenticated' });
@@ -131,7 +168,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword, mustChangePassword: false }
+      data: { password: hashedPassword, mustChangePassword: false, tokenVersion: { increment: 1 } }
     });
     
     await createActivityLog({
@@ -152,11 +189,15 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
 
 export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const parsed = emailSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid email' });
+    }
+    const { email } = parsed.data;
     const user = await prisma.user.findUnique({ where: { email } });
-    
+
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.json({ message: 'If an account with that email exists, a password reset request has been sent to the administrator.' });
     }
 
     if (user.canResetPassword) {
@@ -169,7 +210,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     });
 
     const admins = await prisma.user.findMany({
-      where: { role: 'SuperAdmin' }
+      where: { role: 'SuperAdmin', isActive: true }
     });
 
     for (const admin of admins) {
@@ -192,15 +233,25 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
 export const executePasswordReset = async (req: Request, res: Response) => {
   try {
-    const { email, newPassword } = req.body;
+    const parsed = executeResetSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid input' });
+    }
+    const { email, resetCode, newPassword } = parsed.data;
     const user = await prisma.user.findUnique({ where: { email } });
     
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!user || !user.canResetPassword || !user.resetTokenHash || !user.resetTokenExpiresAt) {
+      return res.status(403).json({ message: 'Invalid or unapproved password reset request.' });
     }
 
-    if (!user.canResetPassword) {
-      return res.status(403).json({ message: 'Password reset not approved by admin.' });
+    if (user.resetTokenExpiresAt.getTime() < Date.now()) {
+      return res.status(403).json({ message: 'Password reset code has expired. Please request a new one.' });
+    }
+
+    const providedHash = Buffer.from(hashResetCode(resetCode), 'hex');
+    const storedHash = Buffer.from(user.resetTokenHash, 'hex');
+    if (providedHash.length !== storedHash.length || !crypto.timingSafeEqual(providedHash, storedHash)) {
+      return res.status(403).json({ message: 'Invalid password reset code.' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -210,13 +261,153 @@ export const executePasswordReset = async (req: Request, res: Response) => {
       data: { 
         password: hashedPassword, 
         canResetPassword: false, 
-        resetPasswordRequested: false 
+        resetPasswordRequested: false,
+        resetTokenHash: null,
+        resetTokenExpiresAt: null,
+        mustChangePassword: false,
+        tokenVersion: { increment: 1 }
       }
+    });
+
+    await createActivityLog({
+      userId: user.id,
+      action: 'PASSWORD_RESET',
+      entityType: 'User',
+      entityId: user.id,
+      description: 'User completed admin-approved password reset',
+      req
     });
 
     res.json({ message: 'Password updated successfully.' });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const googleAuth = async (req: Request, res: Response) => {
+  try {
+    const parsed = googleAuthSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid Google token' });
+    }
+
+    const { idToken } = parsed.data;
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!verifyRes.ok) {
+      return res.status(401).json({ message: 'Invalid Google ID token' });
+    }
+
+    const payload: any = await verifyRes.json();
+    const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+    if (expectedClientId && payload.aud !== expectedClientId) {
+      return res.status(401).json({ message: 'Google token audience mismatch' });
+    }
+    if (payload.email_verified !== 'true' && payload.email_verified !== true) {
+      return res.status(401).json({ message: 'Google email is not verified' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: payload.email } });
+    if (!user) {
+      return res.status(401).json({ message: 'No BizTask account found for this Google email' });
+    }
+    if (!user.isActive) {
+      return res.status(401).json({ message: 'Your account is inactive. Please contact admin.' });
+    }
+
+    if (!user.googleId || (!user.avatarUrl && payload.picture)) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId: user.googleId || payload.sub,
+          avatarUrl: user.avatarUrl || payload.picture || null,
+        },
+      });
+    }
+
+    createActivityLog({
+      userId: user.id,
+      action: 'LOGIN_GOOGLE',
+      entityType: 'User',
+      entityId: user.id,
+      description: 'User logged in via Google',
+      req,
+    }).catch(err => console.error('Failed to create activity log:', err));
+
+    const token = generateToken(user.id, user.tokenVersion ?? 0);
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      departmentId: user.departmentId,
+      designation: user.designation,
+      status: user.isActive ? 'Active' : 'Inactive',
+      mustChangePassword: user.mustChangePassword,
+      token,
+    });
+  } catch (error) {
+    console.error('Google Auth Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const getMe = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        departmentId: true,
+        designation: true,
+        phone: true,
+        whatsappNumber: true,
+        avatarUrl: true,
+        isActive: true,
+        mustChangePassword: true,
+        department: { select: { id: true, name: true } },
+        teamMemberships: {
+          include: { team: { select: { id: true, name: true, departmentId: true } } },
+        },
+        clientMemberships: {
+          where: { isRevoked: false },
+          include: { client: { select: { id: true, name: true, companyName: true } } },
+        },
+      },
+    });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const logoutAll = async (req: AuthRequest, res: Response) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+    res.json({ message: 'All sessions have been invalidated' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 

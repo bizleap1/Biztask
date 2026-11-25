@@ -10,6 +10,4 @@ const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const router = express_1.default.Router();
 router.get('/my', authMiddleware_1.protect, activityLogController_1.getMyActivityLogs);
 router.get('/', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager', 'Viewer'), activityLogController_1.getActivityLogs);
-router.delete('/bulk', authMiddleware_1.protect, activityLogController_1.bulkDeleteActivityLogs);
-router.delete('/:id', authMiddleware_1.protect, activityLogController_1.deleteActivityLog);
 exports.default = router;

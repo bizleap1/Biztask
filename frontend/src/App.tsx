@@ -13,6 +13,7 @@ import MyDailyReports from './pages/MyDailyReports';
 import DailyReports from './pages/DailyReports';
 import Notifications from './pages/Notifications';
 import ActivityLogs from './pages/ActivityLogs';
+import Teams from './pages/Teams';
 import { AuthGuard } from './components/AuthGuard';
 
 function App() {
@@ -36,34 +37,39 @@ function App() {
             <Employees />
           </AuthGuard>
         } />
-        <Route path="tasks" element={
+        <Route path="teams" element={
           <AuthGuard allowedRoles={['SuperAdmin', 'Manager']}>
+            <Teams />
+          </AuthGuard>
+        } />
+        <Route path="tasks" element={
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'TeamLead']}>
             <Tasks />
           </AuthGuard>
         } />
         <Route path="assign-task" element={
-          <AuthGuard allowedRoles={['DevEmployee', 'MediaEmployee']}>
+          <AuthGuard allowedRoles={['Employee', 'DevEmployee', 'MediaEmployee', 'TeamLead']}>
             <AssignTask />
           </AuthGuard>
         } />
         <Route path="my-tasks" element={
-          <AuthGuard allowedRoles={['DevEmployee', 'MediaEmployee']}>
+          <AuthGuard allowedRoles={['Employee', 'DevEmployee', 'MediaEmployee', 'TeamLead']}>
             <MyTasks />
           </AuthGuard>
         } />
         <Route path="tasks/:id" element={<TaskDetails />} />
         <Route path="review-submissions" element={
-          <AuthGuard allowedRoles={['SuperAdmin', 'Manager']}>
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'TeamLead']}>
             <ReviewSubmissions />
           </AuthGuard>
         } />
         <Route path="my-daily-reports" element={
-          <AuthGuard allowedRoles={['DevEmployee', 'MediaEmployee']}>
+          <AuthGuard allowedRoles={['Employee', 'DevEmployee', 'MediaEmployee', 'TeamLead']}>
             <MyDailyReports />
           </AuthGuard>
         } />
         <Route path="daily-reports" element={
-          <AuthGuard allowedRoles={['SuperAdmin', 'Manager']}>
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'TeamLead']}>
             <DailyReports />
           </AuthGuard>
         } />
@@ -74,7 +80,11 @@ function App() {
           </AuthGuard>
         } />
 
-        <Route path="settings" element={<div className="p-4 bg-white rounded-xl shadow-pepper">Settings Feature Coming Soon</div>} />
+        <Route path="settings" element={
+          <AuthGuard allowedRoles={['SuperAdmin']}>
+            <div className="p-4 bg-white rounded-xl shadow-pepper">Settings Feature Coming Soon</div>
+          </AuthGuard>
+        } />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

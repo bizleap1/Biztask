@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadFileToSupabase = void 0;
+exports.getSignedFileUrl = exports.uploadFileToSupabase = void 0;
 const supabase_js_1 = require("@supabase/supabase-js");
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -25,7 +25,16 @@ const uploadFileToSupabase = async (fileBuffer, originalName, mimeType) => {
     if (error) {
         throw new Error(`Supabase upload failed: ${error.message}`);
     }
-    // Get public URL
+    // Prefer short-lived signed URL for private buckets; fallback to public URL if bucket is public
+    const { data: signedData } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, 3600);
+    if (signedData?.signedUrl) {
+        return {
+            url: signedData.signedUrl,
+            path: filePath
+        };
+    }
     const { data: publicUrlData } = supabase.storage
         .from(bucketName)
         .getPublicUrl(filePath);
@@ -35,3 +44,16 @@ const uploadFileToSupabase = async (fileBuffer, originalName, mimeType) => {
     };
 };
 exports.uploadFileToSupabase = uploadFileToSupabase;
+const getSignedFileUrl = async (filePath, expiresInSeconds = 3600) => {
+    if (!supabase) {
+        throw new Error('Supabase client is not initialized.');
+    }
+    const { data, error } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, expiresInSeconds);
+    if (error || !data?.signedUrl) {
+        throw new Error(`Failed to generate signed URL: ${error?.message || 'Unknown error'}`);
+    }
+    return data.signedUrl;
+};
+exports.getSignedFileUrl = getSignedFileUrl;

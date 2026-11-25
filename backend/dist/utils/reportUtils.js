@@ -19,7 +19,8 @@ const calculateMonthlyReportRate = async (userId) => {
     const reportsThisMonth = await prismaClient_1.default.dailyReport.count({
         where: {
             userId,
-            reportDate: { gte: firstDayOfMonth }
+            isDeleted: false,
+            reportDate: { gte: firstDayOfMonth, lte: now }
         }
     });
     return Math.min(100, (reportsThisMonth / workdaysElapsed) * 100).toFixed(1);

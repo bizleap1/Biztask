@@ -5,7 +5,49 @@ import { calculateMonthlyReportRate } from '../utils/reportUtils';
 import prisma from '../prismaClient';
 import NodeCache from 'node-cache';
 
-const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache// Helper to calculate performance score
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
+
+interface StatusCountGroup {
+  status: string;
+  _count: { id: number };
+}
+
+interface DeptCountGroup {
+  departmentId: number | null;
+  status?: string;
+  _count: { id: number };
+}
+
+interface UserCountGroup {
+  assignedToId?: number | null;
+  userId?: number;
+  status?: string;
+  _count: { id: number };
+}
+
+interface ActivityLogItem {
+  description: string | null;
+  action: string;
+  createdAt: Date;
+  user?: { name: string } | null;
+}
+
+interface DeptItem {
+  id: number;
+  name: string;
+}
+
+interface EmployeeItem {
+  id: number;
+  name: string;
+  department?: { name: string } | null;
+}
+
+export const clearDashboardCache = () => {
+  cache.flushAll();
+};
+
+// Helper to calculate performance score
 const calculatePerformanceScore = (approved: number, overdue: number, rejected: number, dailyReports: number) => {
   // Simple formula as requested
   const score = (approved * 10) - (overdue * 5) - (rejected * 3) + (dailyReports * 2);
@@ -39,7 +81,10 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
     }
 
     // Filters
+    const hasExplicitDates = Boolean(startDate && endDate);
     const dateFilter = getDateFilter(startDate as string, endDate as string);
+    const createdAtFilter = hasExplicitDates ? { createdAt: dateFilter } : {};
+    const reportDateFilter = hasExplicitDates ? { reportDate: dateFilter } : {};
     const deptFilter = department ? { department: { name: department as string } } : {};
     const taskDeptFilter = department ? { department: { name: department as string } } : {};
 
@@ -48,7 +93,7 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const tasksQuery = { where: { ...taskDeptFilter } };
+    const tasksQuery = { where: { isDeleted: false, ...taskDeptFilter, ...createdAtFilter } };
 
     const [
       departments, totalEmployees, activeEmployees, devDept, mediaDept, managementCount,
@@ -67,11 +112,11 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
       prisma.department.findUnique({ where: { name: 'Media' } }),
       prisma.user.count({ where: { role: { in: ['Manager', 'SuperAdmin'] } } }),
 
-      prisma.dailyReport.count({ where: { ...deptFilter } }),
-      prisma.dailyReport.count({ where: { ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
+      prisma.dailyReport.count({ where: { isDeleted: false, ...deptFilter, ...reportDateFilter } }),
+      prisma.dailyReport.count({ where: { isDeleted: false, ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
       prisma.user.count({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
-      prisma.dailyReport.count({ where: { ...deptFilter, status: 'Needs Correction' } }),
-      prisma.dailyReport.count({ where: { ...deptFilter, status: 'Reviewed' } }),
+      prisma.dailyReport.count({ where: { isDeleted: false, ...deptFilter, ...reportDateFilter, status: 'Needs Correction' } }),
+      prisma.dailyReport.count({ where: { isDeleted: false, ...deptFilter, ...reportDateFilter, status: 'Reviewed' } }),
 
       prisma.task.groupBy({ by: ['status'], where: tasksQuery.where, _count: { id: true } }),
       prisma.task.count({ where: { ...tasksQuery.where, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
@@ -81,20 +126,21 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
         take: 5
       }),
 
-      prisma.taskSubmission.count({ where: { reviewStatus: 'Pending Review', task: taskDeptFilter } }),
+      prisma.taskSubmission.count({ where: { isDeleted: false, reviewStatus: 'Pending Review', task: { isDeleted: false, ...taskDeptFilter } } }),
       prisma.taskSubmission.findMany({
-        where: { task: taskDeptFilter },
+        where: { isDeleted: false, task: { isDeleted: false, ...taskDeptFilter } },
         include: { user: { select: { name: true } }, task: { select: { title: true } } },
         orderBy: { submittedAt: 'desc' },
         take: 5
       }),
       prisma.dailyReport.findMany({
-        where: { ...deptFilter },
+        where: { isDeleted: false, ...deptFilter, ...reportDateFilter },
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 5
       }),
       prisma.activityLog.findMany({
+        where: { isDeleted: false },
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 8
@@ -111,22 +157,22 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
         include: { assignedTo: { select: { name: true } } }
       }),
 
-      prisma.task.groupBy({ by: ['departmentId', 'status'], _count: { id: true } }),
-      prisma.task.groupBy({ by: ['departmentId'], where: { deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
-      prisma.dailyReport.groupBy({ by: ['departmentId'], _count: { id: true } }),
-      prisma.dailyReport.groupBy({ by: ['departmentId'], where: { reportDate: { gte: today, lt: tomorrow } }, _count: { id: true } }),
+      prisma.task.groupBy({ by: ['departmentId', 'status'], where: { isDeleted: false, ...createdAtFilter }, _count: { id: true } }),
+      prisma.task.groupBy({ by: ['departmentId'], where: { isDeleted: false, ...createdAtFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
+      prisma.dailyReport.groupBy({ by: ['departmentId'], where: { isDeleted: false, ...reportDateFilter }, _count: { id: true } }),
+      prisma.dailyReport.groupBy({ by: ['departmentId'], where: { isDeleted: false, reportDate: { gte: today, lt: tomorrow } }, _count: { id: true } }),
 
-      prisma.task.groupBy({ by: ['assignedToId', 'status'], _count: { id: true } }),
-      prisma.task.groupBy({ by: ['assignedToId'], where: { deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
-      prisma.dailyReport.groupBy({ by: ['userId'], _count: { id: true } })
+      prisma.task.groupBy({ by: ['assignedToId', 'status'], where: { isDeleted: false, ...createdAtFilter }, _count: { id: true } }),
+      prisma.task.groupBy({ by: ['assignedToId'], where: { isDeleted: false, ...createdAtFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
+      prisma.dailyReport.groupBy({ by: ['userId'], where: { isDeleted: false, ...reportDateFilter }, _count: { id: true } })
     ]);
 
-    const totalTasks = taskStatusCounts.reduce((acc, curr) => acc + curr._count.id, 0);
-    const pendingTasks = taskStatusCounts.find(s => s.status === 'Pending')?._count.id || 0;
-    const inProgressTasks = taskStatusCounts.find(s => s.status === 'In Progress')?._count.id || 0;
-    const submittedTasks = taskStatusCounts.find(s => s.status === 'Submitted')?._count.id || 0;
-    const approvedTasks = taskStatusCounts.find(s => s.status === 'Approved')?._count.id || 0;
-    const rejectedTasks = taskStatusCounts.find(s => s.status === 'Rejected')?._count.id || 0;
+    const totalTasks = taskStatusCounts.reduce((acc: number, curr: StatusCountGroup) => acc + curr._count.id, 0);
+    const pendingTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Pending')?._count.id || 0;
+    const inProgressTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'In Progress')?._count.id || 0;
+    const submittedTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Submitted')?._count.id || 0;
+    const approvedTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Approved')?._count.id || 0;
+    const rejectedTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Rejected')?._count.id || 0;
 
     const inactiveEmployees = totalEmployees - activeEmployees;
 
@@ -138,7 +184,7 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
 
     const missingReportsToday = Math.max(0, expectedSubmitters - todayReports);
 
-    const recentActivityLogs = realActivityLogs.map(log => {
+    const recentActivityLogs = realActivityLogs.map((log: ActivityLogItem) => {
       let msg = log.description || '';
       if (log.user && log.user.name) {
         if (msg.startsWith('User ')) {
@@ -154,28 +200,28 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    const departmentWiseTaskStats = departments.map(dept => {
-      const stats = departmentWiseTaskStatsRaw.filter(g => g.departmentId === dept.id);
-      const overdueStats = departmentWiseOverdueRaw.find(g => g.departmentId === dept.id);
-      const total = stats.reduce((sum, g) => sum + g._count.id, 0);
-      const approved = stats.find(g => g.status === 'Approved')?._count.id || 0;
+    const departmentWiseTaskStats = departments.map((dept: DeptItem) => {
+      const stats = departmentWiseTaskStatsRaw.filter((g: DeptCountGroup) => g.departmentId === dept.id);
+      const overdueStats = departmentWiseOverdueRaw.find((g: DeptCountGroup) => g.departmentId === dept.id);
+      const total = stats.reduce((sum: number, g: DeptCountGroup) => sum + g._count.id, 0);
+      const approved = stats.find((g: DeptCountGroup) => g.status === 'Approved')?._count.id || 0;
       const overdue = overdueStats?._count.id || 0;
       return { name: dept.name, total, approved, overdue };
     });
 
-    const departmentWiseReportStats = departments.map(dept => {
-      const total = departmentWiseReportStatsRaw.find(g => g.departmentId === dept.id)?._count.id || 0;
-      const todayCount = departmentWiseReportTodayRaw.find(g => g.departmentId === dept.id)?._count.id || 0;
+    const departmentWiseReportStats = departments.map((dept: DeptItem) => {
+      const total = departmentWiseReportStatsRaw.find((g: DeptCountGroup) => g.departmentId === dept.id)?._count.id || 0;
+      const todayCount = departmentWiseReportTodayRaw.find((g: DeptCountGroup) => g.departmentId === dept.id)?._count.id || 0;
       return { name: dept.name, total, today: todayCount };
     });
 
-    const employeePerformanceSummary = employees.map(emp => {
-      const empTaskGroups = taskGroups.filter(g => g.assignedToId === emp.id);
-      const empTotalTasks = empTaskGroups.reduce((sum, g) => sum + g._count.id, 0);
-      const empApprovedTasks = empTaskGroups.find(g => g.status === 'Approved')?._count.id || 0;
-      const empRejectedTasks = empTaskGroups.find(g => g.status === 'Rejected')?._count.id || 0;
-      const empOverdueTasks = overdueGroups.find(g => g.assignedToId === emp.id)?._count.id || 0;
-      const empDailyReports = reportGroups.find(g => g.userId === emp.id)?._count.id || 0;
+    const employeePerformanceSummary = employees.map((emp: EmployeeItem) => {
+      const empTaskGroups = taskGroups.filter((g: UserCountGroup) => g.assignedToId === emp.id);
+      const empTotalTasks = empTaskGroups.reduce((sum: number, g: UserCountGroup) => sum + g._count.id, 0);
+      const empApprovedTasks = empTaskGroups.find((g: UserCountGroup) => g.status === 'Approved')?._count.id || 0;
+      const empRejectedTasks = empTaskGroups.find((g: UserCountGroup) => g.status === 'Rejected')?._count.id || 0;
+      const empOverdueTasks = overdueGroups.find((g: UserCountGroup) => g.assignedToId === emp.id)?._count.id || 0;
+      const empDailyReports = reportGroups.find((g: UserCountGroup) => g.userId === emp.id)?._count.id || 0;
 
       return {
         id: emp.id,
@@ -216,7 +262,10 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
       return res.json(cachedData);
     }
 
+    const hasExplicitDates = Boolean(startDate && endDate);
     const dateFilter = getDateFilter(startDate as string, endDate as string);
+    const createdAtFilter = hasExplicitDates ? { createdAt: dateFilter } : {};
+    const reportDateFilter = hasExplicitDates ? { reportDate: dateFilter } : {};
     const deptFilter = {};
 
     const today = new Date();
@@ -237,62 +286,63 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
       prisma.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] } } }),
       prisma.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
       
-      prisma.dailyReport.count({ where: { ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
+      prisma.dailyReport.count({ where: { isDeleted: false, ...deptFilter, reportDate: { gte: today, lt: tomorrow } } }),
       prisma.user.count({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
-      prisma.dailyReport.count({ where: { ...deptFilter, status: 'Needs Correction' } }),
+      prisma.dailyReport.count({ where: { isDeleted: false, ...deptFilter, ...reportDateFilter, status: 'Needs Correction' } }),
       prisma.user.findMany({ where: { ...deptFilter, role: { in: ['DevEmployee', 'MediaEmployee'] } } }),
 
-      prisma.task.groupBy({ by: ['status'], where: deptFilter, _count: { id: true } }),
+      prisma.task.groupBy({ by: ['status'], where: { isDeleted: false, ...deptFilter, ...createdAtFilter }, _count: { id: true } }),
 
-      prisma.task.count({ where: { ...deptFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
+      prisma.task.count({ where: { isDeleted: false, ...deptFilter, ...createdAtFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
       prisma.task.findMany({
-        where: { ...deptFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } },
+        where: { isDeleted: false, ...deptFilter, ...createdAtFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } },
         include: { assignedTo: { select: { name: true } } },
         take: 5
       }),
 
-      prisma.taskSubmission.count({ where: { task: deptFilter, reviewStatus: 'Pending Review' } }),
+      prisma.taskSubmission.count({ where: { isDeleted: false, task: { isDeleted: false, ...deptFilter }, reviewStatus: 'Pending Review' } }),
       prisma.taskSubmission.findMany({
-        where: { task: deptFilter },
+        where: { isDeleted: false, task: { isDeleted: false, ...deptFilter } },
         include: { user: { select: { name: true } }, task: { select: { title: true } } },
         orderBy: { submittedAt: 'desc' },
         take: 5
       }),
       prisma.dailyReport.findMany({
-        where: deptFilter,
+        where: { isDeleted: false, ...deptFilter, ...reportDateFilter },
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 5
       }),
       prisma.activityLog.findMany({
+        where: { isDeleted: false },
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 8
       }),
       
       prisma.task.findMany({
-        where: { ...deptFilter, deadline: { gte: new Date() }, status: { not: 'Approved' } },
+        where: { isDeleted: false, ...deptFilter, ...createdAtFilter, deadline: { gte: new Date() }, status: { not: 'Approved' } },
         orderBy: { deadline: 'asc' },
         take: 5,
         include: { assignedTo: { select: { name: true } } }
       }),
 
-      prisma.task.groupBy({ by: ['assignedToId', 'status'], _count: { id: true } }),
-      prisma.task.groupBy({ by: ['assignedToId'], where: { deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
-      prisma.dailyReport.groupBy({ by: ['userId'], _count: { id: true } })
+      prisma.task.groupBy({ by: ['assignedToId', 'status'], where: { isDeleted: false, ...createdAtFilter }, _count: { id: true } }),
+      prisma.task.groupBy({ by: ['assignedToId'], where: { isDeleted: false, ...createdAtFilter, deadline: { lt: new Date() }, status: { not: 'Approved' } }, _count: { id: true } }),
+      prisma.dailyReport.groupBy({ by: ['userId'], where: { isDeleted: false, ...reportDateFilter }, _count: { id: true } })
     ]);
 
-    const totalTeamTasks = taskStatusCounts.reduce((acc, curr) => acc + curr._count.id, 0);
-    const pendingTeamTasks = taskStatusCounts.find(s => s.status === 'Pending')?._count.id || 0;
-    const inProgressTeamTasks = taskStatusCounts.find(s => s.status === 'In Progress')?._count.id || 0;
-    const submittedTeamTasks = taskStatusCounts.find(s => s.status === 'Submitted')?._count.id || 0;
-    const approvedTeamTasks = taskStatusCounts.find(s => s.status === 'Approved')?._count.id || 0;
-    const rejectedTeamTasks = taskStatusCounts.find(s => s.status === 'Rejected')?._count.id || 0;
+    const totalTeamTasks = taskStatusCounts.reduce((acc: number, curr: StatusCountGroup) => acc + curr._count.id, 0);
+    const pendingTeamTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Pending')?._count.id || 0;
+    const inProgressTeamTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'In Progress')?._count.id || 0;
+    const submittedTeamTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Submitted')?._count.id || 0;
+    const approvedTeamTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Approved')?._count.id || 0;
+    const rejectedTeamTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Rejected')?._count.id || 0;
 
     const inactiveTeamEmployees = teamEmployees - activeTeamEmployees;
     const missingTeamReportsToday = Math.max(0, expectedSubmitters - todayTeamReports);
 
-    const recentActivityLogs = realActivityLogs.map(log => {
+    const recentActivityLogs = realActivityLogs.map((log: ActivityLogItem) => {
       let msg = log.description || '';
       if (log.user && log.user.name) {
         if (msg.startsWith('User ')) {
@@ -308,13 +358,13 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    const teamPerformanceSummary = employees.map(emp => {
-      const empTaskGroups = teamTaskGroups.filter(g => g.assignedToId === emp.id);
-      const empTotalTasks = empTaskGroups.reduce((sum, g) => sum + g._count.id, 0);
-      const empApprovedTasks = empTaskGroups.find(g => g.status === 'Approved')?._count.id || 0;
-      const empRejectedTasks = empTaskGroups.find(g => g.status === 'Rejected')?._count.id || 0;
-      const empOverdueTasks = teamOverdueGroups.find(g => g.assignedToId === emp.id)?._count.id || 0;
-      const empDailyReports = teamReportGroups.find(g => g.userId === emp.id)?._count.id || 0;
+    const teamPerformanceSummary = employees.map((emp: EmployeeItem) => {
+      const empTaskGroups = teamTaskGroups.filter((g: UserCountGroup) => g.assignedToId === emp.id);
+      const empTotalTasks = empTaskGroups.reduce((sum: number, g: UserCountGroup) => sum + g._count.id, 0);
+      const empApprovedTasks = empTaskGroups.find((g: UserCountGroup) => g.status === 'Approved')?._count.id || 0;
+      const empRejectedTasks = empTaskGroups.find((g: UserCountGroup) => g.status === 'Rejected')?._count.id || 0;
+      const empOverdueTasks = teamOverdueGroups.find((g: UserCountGroup) => g.assignedToId === emp.id)?._count.id || 0;
+      const empDailyReports = teamReportGroups.find((g: UserCountGroup) => g.userId === emp.id)?._count.id || 0;
 
       return {
         id: emp.id,
@@ -367,28 +417,28 @@ export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
 
     const taskStatusCounts = await prisma.task.groupBy({
       by: ['status'],
-      where: { assignedToId: userId },
+      where: { assignedToId: userId, isDeleted: false },
       _count: { id: true }
     });
 
-    const myTotalTasks = taskStatusCounts.reduce((acc, curr) => acc + curr._count.id, 0);
-    const myPendingTasks = taskStatusCounts.find(s => s.status === 'Pending')?._count.id || 0;
-    const myInProgressTasks = taskStatusCounts.find(s => s.status === 'In Progress')?._count.id || 0;
-    const mySubmittedTasks = taskStatusCounts.find(s => s.status === 'Submitted')?._count.id || 0;
-    const myApprovedTasks = taskStatusCounts.find(s => s.status === 'Approved')?._count.id || 0;
-    const myRejectedTasks = taskStatusCounts.find(s => s.status === 'Rejected')?._count.id || 0;
+    const myTotalTasks = taskStatusCounts.reduce((acc: number, curr: StatusCountGroup) => acc + curr._count.id, 0);
+    const myPendingTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Pending')?._count.id || 0;
+    const myInProgressTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'In Progress')?._count.id || 0;
+    const mySubmittedTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Submitted')?._count.id || 0;
+    const myApprovedTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Approved')?._count.id || 0;
+    const myRejectedTasks = taskStatusCounts.find((s: StatusCountGroup) => s.status === 'Rejected')?._count.id || 0;
 
     const [
       myOverdueTasks,
       todayReport, myRecentTasks, myUpcomingDeadlines, myRejectedTasksWithFeedback, myRecentDailyReports, user
     ] = await Promise.all([
-      prisma.task.count({ where: { assignedToId: userId, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
+      prisma.task.count({ where: { assignedToId: userId, isDeleted: false, deadline: { lt: new Date() }, status: { not: 'Approved' } } }),
       
-      prisma.dailyReport.findFirst({ where: { userId, reportDate: { gte: today, lt: tomorrow } } }),
-      prisma.task.findMany({ where: { assignedToId: userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
-      prisma.task.findMany({ where: { assignedToId: userId, deadline: { gte: new Date() }, status: { not: 'Approved' } }, orderBy: { deadline: 'asc' }, take: 5 }),
-      prisma.taskSubmission.findMany({ where: { userId, reviewStatus: 'Rejected' }, include: { task: true }, orderBy: { reviewedAt: 'desc' }, take: 3 }),
-      prisma.dailyReport.findMany({ where: { userId }, orderBy: { reportDate: 'desc' }, take: 5 }),
+      prisma.dailyReport.findFirst({ where: { userId, isDeleted: false, reportDate: { gte: today, lt: tomorrow } } }),
+      prisma.task.findMany({ where: { assignedToId: userId, isDeleted: false }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      prisma.task.findMany({ where: { assignedToId: userId, isDeleted: false, deadline: { gte: new Date() }, status: { not: 'Approved' } }, orderBy: { deadline: 'asc' }, take: 5 }),
+      prisma.taskSubmission.findMany({ where: { userId, isDeleted: false, reviewStatus: 'Rejected', task: { isDeleted: false } }, include: { task: true }, orderBy: { reviewedAt: 'desc' }, take: 3 }),
+      prisma.dailyReport.findMany({ where: { userId, isDeleted: false }, orderBy: { reportDate: 'desc' }, take: 5 }),
       prisma.user.findUnique({ where: { id: userId } })
     ]);
 
@@ -436,10 +486,11 @@ export const getHrDashboard = async (req: AuthRequest, res: Response) => {
       prisma.user.count({ where: { isActive: true } }),
       prisma.department.findMany(),
       prisma.user.count({ where: { role: { in: ['DevEmployee', 'MediaEmployee'] }, isActive: true } }),
-      prisma.dailyReport.count({ where: { reportDate: { gte: today, lt: tomorrow } } }),
-      prisma.task.count(),
-      prisma.task.count({ where: { status: 'Approved' } }),
+      prisma.dailyReport.count({ where: { isDeleted: false, reportDate: { gte: today, lt: tomorrow } } }),
+      prisma.task.count({ where: { isDeleted: false } }),
+      prisma.task.count({ where: { isDeleted: false, status: 'Approved' } }),
       prisma.dailyReport.findMany({
+        where: { isDeleted: false },
         include: { user: { select: { name: true } }, department: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 10
@@ -453,9 +504,9 @@ export const getHrDashboard = async (req: AuthRequest, res: Response) => {
       _count: { id: true }
     });
 
-    const departmentWiseEmployees = departments.map(dept => ({
+    const departmentWiseEmployees = departments.map((dept: DeptItem) => ({
       name: dept.name,
-      count: departmentUserCountsRaw.find(g => g.departmentId === dept.id)?._count.id || 0
+      count: departmentUserCountsRaw.find((g: DeptCountGroup) => g.departmentId === dept.id)?._count.id || 0
     }));
 
     const dailyReportCompliance = expectedSubmitters > 0 ? ((todayReports / expectedSubmitters) * 100).toFixed(1) : 0;

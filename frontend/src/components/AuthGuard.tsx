@@ -6,6 +6,9 @@ interface AuthGuardProps {
   allowedRoles?: string[];
 }
 
+const normalizeRole = (role: string) =>
+  role === 'DevEmployee' || role === 'MediaEmployee' ? 'Employee' : role;
+
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children, allowedRoles }) => {
   const userStr = sessionStorage.getItem('user');
   const location = useLocation();
@@ -14,7 +17,13 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children, allowedRoles }) 
     return <Navigate to="/login" replace />;
   }
 
-  const user = JSON.parse(userStr);
+  let user: any;
+  try {
+    user = JSON.parse(userStr);
+  } catch {
+    sessionStorage.removeItem('user');
+    return <Navigate to="/login" replace />;
+  }
 
   // If user must change password, only allow them on the change-password page
   if (user.mustChangePassword && location.pathname !== '/change-password') {
@@ -26,9 +35,12 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children, allowedRoles }) 
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Check role-based access
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+  // Check role-based access (supports both canonical and legacy employee roles)
+  if (allowedRoles) {
+    const normalized = normalizeRole(user.role);
+    if (!allowedRoles.includes(user.role) && !allowedRoles.includes(normalized)) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;

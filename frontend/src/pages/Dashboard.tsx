@@ -11,7 +11,9 @@ export default function Dashboard() {
       case 'SuperAdmin':
         return <AdminDashboard />;
       case 'Manager':
+      case 'TeamLead':
         return <ManagerDashboard />;
+      case 'Employee':
       case 'DevEmployee':
       case 'MediaEmployee':
         return <EmployeeDashboard />;

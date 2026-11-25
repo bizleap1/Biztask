@@ -156,13 +156,17 @@ export const getMyTasks = async (req: AuthRequest, res: Response) => {
 // @access  Private
 export const getTaskById = async (req: AuthRequest, res: Response) => {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: Number(req.params.id) },
+    const taskId = Number(req.params.id);
+    if (isNaN(taskId)) return res.status(400).json({ message: 'Invalid task ID' });
+
+    const task = await prisma.task.findFirst({
+      where: { id: taskId, isDeleted: false },
       include: {
         assignedTo: { select: { id: true, name: true, role: true } },
         assignedBy: { select: { id: true, name: true, role: true } },
         department: { select: { id: true, name: true } },
         submissions: {
+          where: { isDeleted: false },
           include: { user: { select: { id: true, name: true } } },
           orderBy: { createdAt: 'desc' }
         },
@@ -178,7 +182,7 @@ export const getTaskById = async (req: AuthRequest, res: Response) => {
     // Validate access
     const { role, id } = req.user!;
     if (role !== 'SuperAdmin' && role !== 'Manager') {
-      if (task.assignedToId !== id) {
+      if (task.assignedToId !== id && task.assignedById !== id) {
         return res.status(403).json({ message: 'Not authorized to view this task' });
       }
     }
@@ -196,11 +200,15 @@ export const getTaskById = async (req: AuthRequest, res: Response) => {
 export const updateTask = async (req: AuthRequest, res: Response) => {
   try {
     const taskId = Number(req.params.id);
-    const existingTask = await prisma.task.findUnique({ where: { id: taskId } });
+    if (isNaN(taskId)) return res.status(400).json({ message: 'Invalid task ID' });
+
+    const existingTask = await prisma.task.findFirst({ where: { id: taskId, isDeleted: false } });
     if (!existingTask) return res.status(404).json({ message: 'Task not found' });
 
+    const isAdminOrManager = req.user!.role === 'SuperAdmin' || req.user!.role === 'Manager';
+
     // Block if approved (unless SuperAdmin or Manager)
-    if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
+    if (!isAdminOrManager) {
       if (existingTask.assignedById !== req.user!.id) {
         return res.status(403).json({ message: 'Not authorized to edit this task' });
       }
@@ -211,13 +219,28 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
 
     const { title, description, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, status } = req.body;
 
+    if (status !== undefined && status !== existingTask.status && !isAdminOrManager) {
+      return res.status(403).json({ message: 'Only SuperAdmin or Manager can change task status directly' });
+    }
+
+    const nextAssignedToId = assignedToId === undefined
+      ? existingTask.assignedToId
+      : (assignedToId ? Number(assignedToId) : null);
+
+    if (nextAssignedToId && nextAssignedToId !== existingTask.assignedToId) {
+      const targetUser = await prisma.user.findUnique({ where: { id: nextAssignedToId } });
+      if (!targetUser || targetUser.departmentId !== existingTask.departmentId) {
+        return res.status(400).json({ message: 'Assigned employee must belong to the task department.' });
+      }
+    }
+
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
       data: {
         title,
         description,
         category,
-        assignedToId: assignedToId ? Number(assignedToId) : null,
+        assignedToId: nextAssignedToId,
         priority,
         deadline: deadline ? new Date(deadline) : undefined,
         proofRequired,
@@ -229,7 +252,7 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
         postType,
         githubRepo,
         environment,
-        status
+        status: isAdminOrManager ? status : undefined
       }
     });
 
@@ -266,9 +289,10 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
 export const updateTaskStatus = async (req: AuthRequest, res: Response) => {
   try {
     const taskId = Number(req.params.id);
+    if (isNaN(taskId)) return res.status(400).json({ message: 'Invalid task ID' });
     const { status } = req.body;
     
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await prisma.task.findFirst({ where: { id: taskId, isDeleted: false } });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
     // Role-based restrictions
@@ -334,11 +358,16 @@ export const deleteTask = async (req: AuthRequest, res: Response) => {
 // @access  Private
 export const bulkDeleteTasks = async (req: AuthRequest, res: Response) => {
   try {
-    const { ids } = req.body;
-    let whereClause: any = {};
-    if (ids && Array.isArray(ids) && ids.length > 0) {
-      whereClause.id = { in: ids };
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'A non-empty array of task IDs is required' });
     }
+    const numericIds = ids.map(Number).filter(n => !isNaN(n));
+    if (numericIds.length === 0) {
+      return res.status(400).json({ message: 'Valid task IDs are required' });
+    }
+
+    const whereClause: any = { id: { in: numericIds }, isDeleted: false };
     if (req.user!.role !== 'SuperAdmin' && req.user!.role !== 'Manager') {
       whereClause.assignedById = req.user!.id;
     }

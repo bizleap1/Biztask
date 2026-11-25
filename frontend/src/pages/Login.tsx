@@ -16,6 +16,7 @@ export default function Login() {
   const [forgotMode, setForgotMode] = useState<'request'|'reset'>('request');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotResetCode, setForgotResetCode] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotMsg, setForgotMsg] = useState('');
 
@@ -32,17 +33,18 @@ export default function Login() {
           setForgotMsg('Success! Password reset request sent to admin.');
         }
       } else {
-        if (!forgotNewPassword) {
-          setForgotMsg('Please enter a new password.');
+        if (!forgotResetCode.trim() || !forgotNewPassword) {
+          setForgotMsg('Please enter both the reset code and a new password.');
           setForgotLoading(false);
           return;
         }
-        await api.post('/auth/execute-reset', { email: forgotEmail, newPassword: forgotNewPassword });
+        await api.post('/auth/execute-reset', { email: forgotEmail, resetCode: forgotResetCode.trim(), newPassword: forgotNewPassword });
         setForgotMsg('Success! Password updated. You can now login.');
         setTimeout(() => {
           setShowForgotModal(false);
           setForgotMode('request');
           setForgotEmail('');
+          setForgotResetCode('');
           setForgotNewPassword('');
           setForgotMsg('');
         }, 2000);
@@ -182,7 +184,7 @@ export default function Login() {
       {showForgotModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 relative">
-            <button onClick={() => { setShowForgotModal(false); setForgotMode('request'); setForgotEmail(''); setForgotNewPassword(''); setForgotMsg(''); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setShowForgotModal(false); setForgotMode('request'); setForgotEmail(''); setForgotResetCode(''); setForgotNewPassword(''); setForgotMsg(''); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             
@@ -196,7 +198,11 @@ export default function Login() {
             </p>
 
             {forgotMsg && (
-              <div className={`p-3 rounded-lg text-sm mb-4 ${forgotMsg.includes('success') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              <div className={`p-3 rounded-lg text-sm mb-4 ${
+                forgotMsg.toLowerCase().includes('success') || forgotMsg.toLowerCase().includes('already have permission')
+                  ? 'bg-green-50 text-green-700'
+                  : 'bg-red-50 text-red-700'
+              }`}>
                 {forgotMsg}
               </div>
             )}
@@ -214,25 +220,37 @@ export default function Login() {
               </div>
 
               {forgotMode === 'reset' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                  <div className="relative">
-                    <input 
-                      type={showForgotNewPassword ? 'text' : 'password'} 
-                      value={forgotNewPassword}
-                      onChange={e => setForgotNewPassword(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Enter new password"
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Admin Reset Code</label>
+                    <input
+                      type="text"
+                      value={forgotResetCode}
+                      onChange={e => setForgotResetCode(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono uppercase"
+                      placeholder="Enter reset code from your admin"
                     />
-                    <button 
-                      type="button" 
-                      onClick={() => setShowForgotNewPassword(!showForgotNewPassword)} 
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showForgotNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
                   </div>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                    <div className="relative">
+                      <input 
+                        type={showForgotNewPassword ? 'text' : 'password'} 
+                        value={forgotNewPassword}
+                        onChange={e => setForgotNewPassword(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Enter new password"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowForgotNewPassword(!showForgotNewPassword)} 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showForgotNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
 
               <button 

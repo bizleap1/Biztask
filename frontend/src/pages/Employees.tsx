@@ -29,6 +29,7 @@ export default function Employees() {
   });
   const [formError, setFormError] = useState('');
   const [successMsg, setSuccessMsg] = useState<{email: string, pass: string} | null>(null);
+  const [resetCodeInfo, setResetCodeInfo] = useState<{name: string, code: string, expiresAt: string} | null>(null);
 
   const loggedInUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const isSuperAdmin = loggedInUser.role === 'SuperAdmin';
@@ -126,10 +127,15 @@ export default function Employees() {
     setShowEditModal(true);
   };
 
-  const grantReset = async (empId: number) => {
-    if (window.confirm('Are you sure you want to approve password reset for this employee?')) {
+  const grantReset = async (emp: any) => {
+    if (window.confirm(`Are you sure you want to approve password reset for ${emp.name}?`)) {
       try {
-        await api.patch(`/users/${empId}/grant-reset`);
+        const { data } = await api.patch(`/users/${emp.id}/grant-reset`);
+        setResetCodeInfo({
+          name: emp.name,
+          code: data.resetCode,
+          expiresAt: data.expiresAt,
+        });
         fetchData();
       } catch (error: any) {
         console.error(error);
@@ -179,6 +185,19 @@ export default function Employees() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {resetCodeInfo && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-md shadow-sm flex items-start justify-between">
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-amber-800">Password Reset Approved for {resetCodeInfo.name}</h3>
+            <div className="mt-2 text-sm text-amber-700">
+              <p>One-time Reset Code: <span className="font-mono font-bold text-base tracking-wider bg-white px-2 py-0.5 rounded border border-amber-200">{resetCodeInfo.code}</span></p>
+              <p className="mt-1 text-xs">Share this code securely with the employee. Expires at {new Date(resetCodeInfo.expiresAt).toLocaleString()}.</p>
+            </div>
+          </div>
+          <button onClick={() => setResetCodeInfo(null)} className="text-amber-600 hover:text-amber-800 font-bold text-lg leading-none">&times;</button>
         </div>
       )}
 
@@ -290,7 +309,7 @@ export default function Employees() {
                           </button>
                           {emp.resetPasswordRequested && (
                             <button 
-                              onClick={() => grantReset(emp.id)}
+                              onClick={() => grantReset(emp)}
                               className="text-yellow-600 hover:text-yellow-800 transition-colors p-1"
                               title="Approve Password Reset"
                             >
@@ -339,8 +358,11 @@ export default function Employees() {
                 <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full px-3 py-2 border rounded-md">
                   <option value="">Select Role...</option>
                   <option value="Manager">Manager</option>
-                  <option value="DevEmployee">Development Employee</option>
-                  <option value="MediaEmployee">Media Employee</option>
+                  <option value="TeamLead">Team Lead</option>
+                  <option value="Employee">Employee</option>
+                  <option value="DevEmployee">Development Employee (Legacy)</option>
+                  <option value="MediaEmployee">Media Employee (Legacy)</option>
+                  <option value="ClientUser">Client User</option>
                   <option value="Viewer">Viewer (HR/Other)</option>
                 </select>
               </div>
@@ -392,8 +414,11 @@ export default function Employees() {
                 <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full px-3 py-2 border rounded-md" disabled={selectedEmp.id === loggedInUser.id}>
                   {isSuperAdmin && <option value="SuperAdmin">SuperAdmin</option>}
                   <option value="Manager">Manager</option>
-                  <option value="DevEmployee">Development Employee</option>
-                  <option value="MediaEmployee">Media Employee</option>
+                  <option value="TeamLead">Team Lead</option>
+                  <option value="Employee">Employee</option>
+                  <option value="DevEmployee">Development Employee (Legacy)</option>
+                  <option value="MediaEmployee">Media Employee (Legacy)</option>
+                  <option value="ClientUser">Client User</option>
                   <option value="Viewer">Viewer (HR/Other)</option>
                 </select>
                 {selectedEmp.id === loggedInUser.id && <span className="text-xs text-gray-400">You cannot edit your own role</span>}

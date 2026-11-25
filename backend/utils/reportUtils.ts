@@ -16,7 +16,8 @@ export const calculateMonthlyReportRate = async (userId: number) => {
   const reportsThisMonth = await prisma.dailyReport.count({
     where: { 
       userId,
-      reportDate: { gte: firstDayOfMonth }
+      isDeleted: false,
+      reportDate: { gte: firstDayOfMonth, lte: now }
     }
   });
   

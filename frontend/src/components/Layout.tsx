@@ -60,7 +60,7 @@ export default function Layout() {
                 <Link to="/dashboard" className={getLinkClass('/dashboard')} onClick={() => setSidebarOpen(false)}>
                   <Home size={18} /> Dashboard
                 </Link>
-          {(user.role === 'SuperAdmin' || user.role === 'Manager') && (
+          {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'TeamLead') && (
             <>
               <Link to="/tasks" className={getLinkClass('/tasks')} onClick={() => setSidebarOpen(false)}>
                 <CheckSquare size={18} /> Tasks Overview
@@ -73,7 +73,7 @@ export default function Layout() {
               </Link>
             </>
           )}
-          {(user.role === 'DevEmployee' || user.role === 'MediaEmployee') && (
+          {(user.role === 'Employee' || user.role === 'DevEmployee' || user.role === 'MediaEmployee' || user.role === 'TeamLead') && (
             <>
               <Link to="/my-tasks" className={getLinkClass('/my-tasks')} onClick={() => setSidebarOpen(false)}>
                 <CheckSquare size={18} /> My Tasks
@@ -87,9 +87,14 @@ export default function Layout() {
             </>
           )}
           {(user.role === 'SuperAdmin' || user.role === 'Manager') && (
-            <Link to="/employees" className={getLinkClass('/employees')} onClick={() => setSidebarOpen(false)}>
-              <Users size={18} /> Employees
-            </Link>
+            <>
+              <Link to="/employees" className={getLinkClass('/employees')} onClick={() => setSidebarOpen(false)}>
+                <Users size={18} /> Employees
+              </Link>
+              <Link to="/teams" className={getLinkClass('/teams')} onClick={() => setSidebarOpen(false)}>
+                <Users size={18} /> Teams
+              </Link>
+            </>
           )}
           {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'Viewer') && (
             <Link to="/activity-logs" className={getLinkClass('/activity-logs')} onClick={() => setSidebarOpen(false)}>

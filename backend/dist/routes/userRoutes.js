@@ -10,7 +10,7 @@ const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const router = express_1.default.Router();
 router.get('/departments', authMiddleware_1.protect, userController_1.getDepartments);
 router.route('/')
-    .get(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager', 'DevEmployee', 'MediaEmployee'), userController_1.getUsers)
+    .get(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee'), userController_1.getUsers)
     .post(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), userController_1.createUser);
 router.route('/:id')
     .get(authMiddleware_1.protect, userController_1.getUserById)

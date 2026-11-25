@@ -9,29 +9,40 @@ datasource db {
 }
 
 model User {
-  id               Int                @id @default(autoincrement())
-  name             String
-  email            String             @unique
-  password         String
-  role             String             @default("Viewer") // SuperAdmin, Manager, DevEmployee, MediaEmployee, Viewer
-  designation      String?
-  isActive         Boolean            @default(true)
-  mustChangePassword Boolean          @default(true)
-  resetPasswordRequested Boolean      @default(false)
-  canResetPassword       Boolean      @default(false)
-  departmentId     Int?
-  department       Department?        @relation(fields: [departmentId], references: [id])
-  assignedTasks    Task[]             @relation("AssignedTo")
-  createdTasks     Task[]             @relation("AssignedBy")
-  submissions      TaskSubmission[]   @relation("UserSubmissions")
-  reviewedSubmissions TaskSubmission[] @relation("ReviewedBy")
-  dailyReports          DailyReport[] @relation("ReportOwner")
-  reviewedDailyReports  DailyReport[] @relation("ReportReviewedBy")
-  activityLogs     ActivityLog[]
-  comments         Comment[]
-  notifications    Notification[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id                     Int                @id @default(autoincrement())
+  name                   String
+  email                  String             @unique
+  password               String
+  role                   String             @default("Employee") // SuperAdmin, Manager, TeamLead, Employee, ClientUser (legacy: DevEmployee, MediaEmployee, Viewer)
+  designation            String?
+  phone                  String?
+  whatsappNumber         String?
+  avatarUrl              String?
+  googleId               String?            @unique
+  tokenVersion           Int                @default(0)
+  isActive               Boolean            @default(true)
+  mustChangePassword     Boolean            @default(true)
+  resetPasswordRequested Boolean            @default(false)
+  canResetPassword       Boolean            @default(false)
+  resetTokenHash         String?
+  resetTokenExpiresAt    DateTime?
+  departmentId           Int?
+  department             Department?        @relation(fields: [departmentId], references: [id])
+  assignedTasks          Task[]             @relation("AssignedTo")
+  createdTasks           Task[]             @relation("AssignedBy")
+  submissions            TaskSubmission[]   @relation("UserSubmissions")
+  reviewedSubmissions    TaskSubmission[]   @relation("ReviewedBy")
+  dailyReports           DailyReport[]      @relation("ReportOwner")
+  reviewedDailyReports   DailyReport[]      @relation("ReportReviewedBy")
+  activityLogs           ActivityLog[]
+  comments               Comment[]
+  notifications          Notification[]
+  ledTeams               Team[]             @relation("TeamLead")
+  teamMemberships        TeamMembership[]
+  managedClients         Client[]           @relation("AccountManager")
+  clientMemberships      ClientMembership[]
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   @@index([role])
   @@index([departmentId])
@@ -41,9 +52,75 @@ model Department {
   id           Int           @id @default(autoincrement())
   name         String        @unique
   users        User[]
+  teams        Team[]
   tasks        Task[]
   dailyReports DailyReport[]
   createdAt    DateTime      @default(now())
+}
+
+model Team {
+  id           Int              @id @default(autoincrement())
+  name         String
+  departmentId Int?
+  department   Department?      @relation(fields: [departmentId], references: [id])
+  leadId       Int?
+  lead         User?            @relation("TeamLead", fields: [leadId], references: [id])
+  members      TeamMembership[]
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([name])
+  @@index([departmentId])
+  @@index([leadId])
+}
+
+model TeamMembership {
+  id        Int      @id @default(autoincrement())
+  teamId    Int
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("Member") // Lead, Member
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model Client {
+  id               Int                @id @default(autoincrement())
+  name             String
+  companyName      String?
+  email            String?
+  phone            String?
+  industry         String?
+  status           String             @default("Active") // Active, At-Risk, Paused, Churned
+  accountManagerId Int?
+  accountManager   User?              @relation("AccountManager", fields: [accountManagerId], references: [id])
+  memberships      ClientMembership[]
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([accountManagerId])
+  @@index([status])
+}
+
+model ClientMembership {
+  id        Int       @id @default(autoincrement())
+  clientId  Int
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String    @default("Member") // Owner, Member
+  isRevoked Boolean   @default(false)
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([clientId, userId])
+  @@index([userId])
+  @@index([isRevoked])
 }
 
 model Task {

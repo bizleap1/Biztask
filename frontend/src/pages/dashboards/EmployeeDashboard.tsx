@@ -141,7 +141,7 @@ export default function EmployeeDashboard() {
 
       <TaskProgressionWidget />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Chart */}
         <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm md:col-span-1 flex flex-col">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Task Status Breakdown</h2>

@@ -29,7 +29,18 @@ export const uploadFileToSupabase = async (fileBuffer: Buffer, originalName: str
     throw new Error(`Supabase upload failed: ${error.message}`);
   }
 
-  // Get public URL
+  // Prefer short-lived signed URL for private buckets; fallback to public URL if bucket is public
+  const { data: signedData } = await supabase.storage
+    .from(bucketName)
+    .createSignedUrl(filePath, 3600);
+
+  if (signedData?.signedUrl) {
+    return {
+      url: signedData.signedUrl,
+      path: filePath
+    };
+  }
+
   const { data: publicUrlData } = supabase.storage
     .from(bucketName)
     .getPublicUrl(filePath);
@@ -38,4 +49,18 @@ export const uploadFileToSupabase = async (fileBuffer: Buffer, originalName: str
     url: publicUrlData.publicUrl,
     path: filePath
   };
+};
+
+export const getSignedFileUrl = async (filePath: string, expiresInSeconds = 3600): Promise<string> => {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized.');
+  }
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .createSignedUrl(filePath, expiresInSeconds);
+
+  if (error || !data?.signedUrl) {
+    throw new Error(`Failed to generate signed URL: ${error?.message || 'Unknown error'}`);
+  }
+  return data.signedUrl;
 };

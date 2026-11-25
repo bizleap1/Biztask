@@ -24,7 +24,7 @@ export default function Tasks() {
   const loggedInUserStr = sessionStorage.getItem('user');
   const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
   const isSuperAdmin = loggedInUser?.role === 'SuperAdmin';
-  const isAdminOrSuper = loggedInUser?.role === 'Admin' || isSuperAdmin;
+  const isAdminOrSuper = loggedInUser?.role === 'Manager' || isSuperAdmin;
   const [tasks, setTasks] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,7 +184,7 @@ export default function Tasks() {
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedIds(tasks.map(t => t.id));
+      setSelectedIds(filteredTasks.map(t => t.id));
     } else {
       setSelectedIds([]);
     }
@@ -206,8 +206,9 @@ export default function Tasks() {
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm('Are you sure you want to delete all currently visible tasks?')) return;
-    const ids = tasks.map(t => t.id);
+    if (filteredTasks.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete all ${filteredTasks.length} currently visible tasks?`)) return;
+    const ids = filteredTasks.map(t => t.id);
     try {
       await taskService.bulkDeleteTasks(ids);
       setSelectedIds([]);

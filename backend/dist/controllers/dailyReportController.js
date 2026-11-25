@@ -19,13 +19,19 @@ const submitReport = async (req, res) => {
         if (!departmentId) {
             return res.status(400).json({ message: 'User does not belong to a department' });
         }
-        // Check for duplicate report on the same date
+        // Check for duplicate report on the same date (excluding soft-deleted)
         const dateObj = new Date(reportDate);
-        const startOfDay = new Date(dateObj.setHours(0, 0, 0, 0));
-        const endOfDay = new Date(dateObj.setHours(23, 59, 59, 999));
+        if (isNaN(dateObj.getTime())) {
+            return res.status(400).json({ message: 'Valid report date is required' });
+        }
+        const startOfDay = new Date(dateObj);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(dateObj);
+        endOfDay.setHours(23, 59, 59, 999);
         const existingReport = await prismaClient_1.default.dailyReport.findFirst({
             where: {
                 userId,
+                isDeleted: false,
                 reportDate: {
                     gte: startOfDay,
                     lte: endOfDay
@@ -116,10 +122,13 @@ const getAllReports = async (req, res) => {
             },
             orderBy: { reportDate: 'desc' }
         });
-        // Fetch live monthly submission rate for each report's user
-        const reportsWithRates = await Promise.all(reports.map(async (report) => {
-            const rate = await (0, reportUtils_1.calculateMonthlyReportRate)(report.userId);
-            return { ...report, user: { ...report.user, reportSubmissionRate: rate } };
+        // Fetch live monthly submission rate once per unique user (fixes N+1)
+        const uniqueUserIds = Array.from(new Set(reports.map(r => r.userId)));
+        const rateEntries = await Promise.all(uniqueUserIds.map(async (uid) => [uid, await (0, reportUtils_1.calculateMonthlyReportRate)(uid)]));
+        const rateMap = new Map(rateEntries);
+        const reportsWithRates = reports.map(report => ({
+            ...report,
+            user: { ...report.user, reportSubmissionRate: rateMap.get(report.userId) ?? '0.0' }
         }));
         res.json(reportsWithRates);
     }
@@ -155,8 +164,11 @@ exports.getMyReports = getMyReports;
 // @access  Private
 const getReportById = async (req, res) => {
     try {
-        const report = await prismaClient_1.default.dailyReport.findUnique({
-            where: { id: Number(req.params.id) },
+        const reportId = Number(req.params.id);
+        if (isNaN(reportId))
+            return res.status(400).json({ message: 'Invalid report ID' });
+        const report = await prismaClient_1.default.dailyReport.findFirst({
+            where: { id: reportId, isDeleted: false },
             include: {
                 user: { select: { id: true, name: true, email: true, role: true, designation: true } },
                 department: { select: { id: true, name: true } },
@@ -219,7 +231,12 @@ exports.updateReport = updateReport;
 const reviewReport = async (req, res) => {
     try {
         const reportId = Number(req.params.id);
+        if (isNaN(reportId))
+            return res.status(400).json({ message: 'Invalid report ID' });
         const { managerFeedback } = req.body;
+        const existing = await prismaClient_1.default.dailyReport.findFirst({ where: { id: reportId, isDeleted: false } });
+        if (!existing)
+            return res.status(404).json({ message: 'Report not found' });
         const updated = await prismaClient_1.default.dailyReport.update({
             where: { id: reportId },
             data: {
@@ -259,10 +276,15 @@ exports.reviewReport = reviewReport;
 const markNeedsCorrection = async (req, res) => {
     try {
         const reportId = Number(req.params.id);
+        if (isNaN(reportId))
+            return res.status(400).json({ message: 'Invalid report ID' });
         const { managerFeedback } = req.body;
         if (!managerFeedback) {
             return res.status(400).json({ message: 'Feedback is required for corrections' });
         }
+        const existing = await prismaClient_1.default.dailyReport.findFirst({ where: { id: reportId, isDeleted: false } });
+        if (!existing)
+            return res.status(404).json({ message: 'Report not found' });
         const updated = await prismaClient_1.default.dailyReport.update({
             where: { id: reportId },
             data: {
@@ -321,11 +343,15 @@ exports.deleteReport = deleteReport;
 // @access  Private
 const bulkDeleteReports = async (req, res) => {
     try {
-        const { ids } = req.body;
-        let whereClause = {};
-        if (ids && Array.isArray(ids) && ids.length > 0) {
-            whereClause.id = { in: ids };
+        const ids = req.body?.ids;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: 'A non-empty array of report IDs is required' });
         }
+        const numericIds = ids.map(Number).filter(n => !isNaN(n));
+        if (numericIds.length === 0) {
+            return res.status(400).json({ message: 'Valid report IDs are required' });
+        }
+        const whereClause = { id: { in: numericIds }, isDeleted: false };
         if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Manager') {
             whereClause.userId = req.user.id;
         }
