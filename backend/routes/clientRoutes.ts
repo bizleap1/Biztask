@@ -7,6 +7,9 @@ import {
   deleteClient,
   addClientContact,
   deleteClientContact,
+  getClientMemberships,
+  addClientMembership,
+  revokeClientMembership,
 } from '../controllers/clientController';
 import { protect } from '../middleware/authMiddleware';
 import { authorizeRoles } from '../middleware/roleMiddleware';
@@ -24,5 +27,8 @@ router.route('/:id')
 
 router.post('/:id/contacts', protect, authorizeRoles('SuperAdmin', 'Manager'), addClientContact as any);
 router.delete('/:id/contacts/:contactId', protect, authorizeRoles('SuperAdmin', 'Manager'), deleteClientContact as any);
+router.get('/:id/memberships', protect, authorizeRoles('SuperAdmin', 'Manager'), getClientMemberships as any);
+router.post('/:id/memberships', protect, authorizeRoles('SuperAdmin', 'Manager'), addClientMembership as any);
+router.delete('/:id/memberships/:userId', protect, authorizeRoles('SuperAdmin', 'Manager'), revokeClientMembership as any);
 
 export default router;

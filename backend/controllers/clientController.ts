@@ -242,3 +242,78 @@ export const deleteClientContact = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+export const getClientMemberships = async (req: AuthRequest, res: Response) => {
+  try {
+    const clientId = Number(req.params.id);
+    const memberships = await prisma.clientMembership.findMany({
+      where: { clientId },
+      include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(memberships);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const addClientMembership = async (req: AuthRequest, res: Response) => {
+  try {
+    const clientId = Number(req.params.id);
+    const userId = Number(req.body.userId);
+    if (!Number.isInteger(clientId) || !Number.isInteger(userId)) {
+      return res.status(400).json({ message: 'Valid client and user IDs are required' });
+    }
+    const user = await prisma.user.findFirst({ where: { id: userId, isActive: true } });
+    if (!user) return res.status(404).json({ message: 'Active user not found' });
+    const membership = await prisma.clientMembership.upsert({
+      where: { clientId_userId: { clientId, userId } },
+      update: { isRevoked: false, revokedAt: null, role: req.body.role === 'Owner' ? 'Owner' : 'Member' },
+      create: { clientId, userId, role: req.body.role === 'Owner' ? 'Owner' : 'Member' }
+    });
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'CLIENT_MEMBERSHIP_ADDED',
+      entityType: 'Client',
+      entityId: clientId,
+      description: `Granted client workspace access to user ID ${userId}`,
+      req
+    });
+    res.status(201).json(membership);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const revokeClientMembership = async (req: AuthRequest, res: Response) => {
+  try {
+    const clientId = Number(req.params.id);
+    const userId = Number(req.params.userId);
+    const membership = await prisma.clientMembership.findUnique({
+      where: { clientId_userId: { clientId, userId } }
+    });
+    if (!membership) return res.status(404).json({ message: 'Client membership not found' });
+    if (membership.isRevoked) return res.status(409).json({ message: 'Client membership already revoked' });
+    await prisma.$transaction([
+      prisma.clientMembership.update({
+        where: { clientId_userId: { clientId, userId } },
+        data: { isRevoked: true, revokedAt: new Date() }
+      }),
+      prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } })
+    ]);
+    await createActivityLog({
+      userId: req.user!.id,
+      action: 'CLIENT_MEMBERSHIP_REVOKED',
+      entityType: 'Client',
+      entityId: clientId,
+      description: `Revoked client workspace access for user ID ${userId}`,
+      req
+    });
+    res.json({ message: 'Client membership revoked successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

@@ -8,7 +8,10 @@ import {
   activateUser,
   deleteUser,
   grantPasswordReset,
-  getDepartments
+  getDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment
 } from '../controllers/userController';
 import { protect } from '../middleware/authMiddleware';
 import { authorizeRoles } from '../middleware/roleMiddleware';
@@ -16,6 +19,9 @@ import { authorizeRoles } from '../middleware/roleMiddleware';
 const router = express.Router();
 
 router.get('/departments', protect, getDepartments as any);
+router.post('/departments', protect, authorizeRoles('SuperAdmin', 'Manager'), createDepartment as any);
+router.put('/departments/:id', protect, authorizeRoles('SuperAdmin', 'Manager'), updateDepartment as any);
+router.delete('/departments/:id', protect, authorizeRoles('SuperAdmin'), deleteDepartment as any);
 
 router.route('/')
   .get(protect, authorizeRoles('SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee'), getUsers as any)

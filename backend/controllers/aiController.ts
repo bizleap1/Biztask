@@ -1,5 +1,31 @@
 import { Request, Response } from 'express';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { z } from 'zod';
+
+const taskAiSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional().default(''),
+  priority: z.enum(['Low', 'Medium', 'High']).optional().default('Medium'),
+  category: z.string().optional(),
+  deadline: z.string().optional(),
+  clientName: z.string().optional(),
+  clientDetails: z.string().optional(),
+  driveLink: z.string().optional(),
+  socialMediaPlatform: z.string().optional(),
+  postType: z.string().optional(),
+  githubRepo: z.string().optional(),
+  environment: z.string().optional()
+});
+
+const calendarAiSchema = z.array(z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  platform: z.string().min(1),
+  type: z.string().min(1),
+  topic: z.string().min(1),
+  content: z.string().min(1),
+  objective: z.string().optional().default(''),
+  visualIdea: z.string().optional().default('')
+}));
 
 export const parseTask = async (req: Request, res: Response) => {
   try {
@@ -64,8 +90,9 @@ export const parseTask = async (req: Request, res: Response) => {
     });
 
     if (response.text) {
-      const parsedData = JSON.parse(response.text);
-      res.json(parsedData);
+      const parsedData = taskAiSchema.safeParse(JSON.parse(response.text));
+      if (!parsedData.success) return res.status(422).json({ message: 'AI output did not pass reviewable task validation', issues: parsedData.error.issues });
+      res.json(parsedData.data);
     } else {
       res.status(500).json({ message: 'Failed to parse task from audio.' });
     }
@@ -120,8 +147,9 @@ export const generateCalendar = async (req: Request, res: Response) => {
     });
 
     if (response.text) {
-      const parsedData = JSON.parse(response.text);
-      res.json(parsedData);
+      const parsedData = calendarAiSchema.safeParse(JSON.parse(response.text));
+      if (!parsedData.success) return res.status(422).json({ message: 'AI output did not pass calendar validation', issues: parsedData.error.issues });
+      res.json(parsedData.data);
     } else {
       res.status(500).json({ message: 'Failed to generate calendar.' });
     }

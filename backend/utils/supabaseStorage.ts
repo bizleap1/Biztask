@@ -29,26 +29,15 @@ export const uploadFileToSupabase = async (fileBuffer: Buffer, originalName: str
     throw new Error(`Supabase upload failed: ${error.message}`);
   }
 
-  // Prefer short-lived signed URL for private buckets; fallback to public URL if bucket is public
-  const { data: signedData } = await supabase.storage
+  // Private delivery only. Public bucket URLs must never be returned.
+  const { data: signedData, error: signedError } = await supabase.storage
     .from(bucketName)
     .createSignedUrl(filePath, 3600);
 
-  if (signedData?.signedUrl) {
-    return {
-      url: signedData.signedUrl,
-      path: filePath
-    };
+  if (!signedData?.signedUrl) {
+    throw new Error(`Failed to create a protected signed URL: ${signedError?.message || 'Configure the storage bucket as private.'}`);
   }
-
-  const { data: publicUrlData } = supabase.storage
-    .from(bucketName)
-    .getPublicUrl(filePath);
-
-  return {
-    url: publicUrlData.publicUrl,
-    path: filePath
-  };
+  return { url: signedData.signedUrl, path: filePath };
 };
 
 export const getSignedFileUrl = async (filePath: string, expiresInSeconds = 3600): Promise<string> => {

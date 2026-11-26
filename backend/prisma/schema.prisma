@@ -51,6 +51,7 @@ model User {
   attendanceRecords      Attendance[]
   leaveRequests          LeaveRequest[]
   leaveApprovals         LeaveRequest[]      @relation("LeaveApprover")
+  portalRequests         ClientRequest[]
   contentCalendars       ContentCalendar[]   @relation("CalendarCreator")
   contentItems           ContentItem[]       @relation("ContentItemCreator")
   createdAt              DateTime            @default(now())
@@ -119,6 +120,8 @@ model Client {
   deals            Deal[]
   invoices         Invoice[]
   contentCalendars ContentCalendar[]
+  portalRequests   ClientRequest[]
+  portalReports    PortalReport[]
   isActive         Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -193,42 +196,43 @@ model ClientMembership {
 }
 
 model Task {
-  id                  Int                 @id @default(autoincrement())
-  title               String
-  description         String
-  category            String
-  priority            String              @default("Medium") // Low, Medium, High, Urgent
-  status              String              @default("Pending") // Pending, In Progress, Submitted, Approved, Rejected, Overdue
-  deadline            DateTime
-  proofRequired       Boolean             @default(true)
-  proofType           String? // Image, PDF, Video, Link, Screenshot, GitHub PR, Website URL, Social Media Link
-  clientId            Int?
-  client              Client?             @relation(fields: [clientId], references: [id])
-  projectId           Int?
-  project             Project?            @relation(fields: [projectId], references: [id])
-  clientName          String? // General Project Field (legacy/display fallback)
-  clientDetails       String? // General Project Field
-  driveLink           String? // General Project Field
-  socialMediaPlatform String? // Media Dept Field
-  postType            String? // Media Dept Field
-  githubRepo          String? // Dev Dept Field
-  environment         String? // Dev Dept Field
-  departmentId        Int
-  department          Department          @relation(fields: [departmentId], references: [id])
-  assignedToId        Int?
-  assignedTo          User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
-  assignedById        Int
-  assignedBy          User                @relation("AssignedBy", fields: [assignedById], references: [id])
-  submissions         TaskSubmission[]
-  comments            Comment[]
-  meetingId           Int?
-  meeting             Meeting?            @relation(fields: [meetingId], references: [id])
-  actionItems         MeetingActionItem[]
-  contentItem         ContentItem?
-  clientVisible       Boolean             @default(false)
-  isDeleted           Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                   Int                 @id @default(autoincrement())
+  title                String
+  description          String
+  category             String
+  priority             String              @default("Medium") // Low, Medium, High, Urgent
+  status               String              @default("Pending") // Pending, In Progress, Submitted, Approved, Rejected, Overdue
+  deadline             DateTime
+  proofRequired        Boolean             @default(true)
+  proofType            String? // Image, PDF, Video, Link, Screenshot, GitHub PR, Website URL, Social Media Link
+  clientId             Int?
+  client               Client?             @relation(fields: [clientId], references: [id])
+  projectId            Int?
+  project              Project?            @relation(fields: [projectId], references: [id])
+  clientName           String? // General Project Field (legacy/display fallback)
+  clientDetails        String? // General Project Field
+  driveLink            String? // General Project Field
+  socialMediaPlatform  String? // Media Dept Field
+  postType             String? // Media Dept Field
+  githubRepo           String? // Dev Dept Field
+  environment          String? // Dev Dept Field
+  departmentId         Int
+  department           Department          @relation(fields: [departmentId], references: [id])
+  assignedToId         Int?
+  assignedTo           User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedById         Int
+  assignedBy           User                @relation("AssignedBy", fields: [assignedById], references: [id])
+  submissions          TaskSubmission[]
+  comments             Comment[]
+  meetingId            Int?
+  meeting              Meeting?            @relation(fields: [meetingId], references: [id])
+  actionItems          MeetingActionItem[]
+  contentItem          ContentItem?
+  clientVisible        Boolean             @default(false)
+  clientApprovalStatus String              @default("NotRequested")
+  isDeleted            Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@index([status])
   @@index([departmentId])
@@ -521,6 +525,73 @@ model Comment {
   user      User     @relation(fields: [userId], references: [id])
   content   String
   createdAt DateTime @default(now())
+}
+
+model ClientRequest {
+  id            Int      @id @default(autoincrement())
+  clientId      Int
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  requestedById Int
+  requestedBy   User     @relation(fields: [requestedById], references: [id])
+  title         String
+  description   String
+  status        String   @default("Pending") // Pending, Accepted, Declined, Converted
+  taskId        Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([requestedById])
+}
+
+model PortalReport {
+  id             Int       @id @default(autoincrement())
+  clientId       Int
+  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title          String
+  reportingMonth Int
+  reportingYear  Int
+  status         String    @default("Draft") // Draft, Published
+  content        Json?
+  publishedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([clientId, reportingMonth, reportingYear])
+  @@index([clientId])
+  @@index([status])
+}
+
+model IntegrationAccount {
+  id                   Int       @id @default(autoincrement())
+  provider             String
+  accountName          String?
+  externalAccountId    String?
+  status               String    @default("Disconnected") // Disconnected, Connected, Error
+  lastSuccessfulSyncAt DateTime?
+  lastError            String?
+  isEnabled            Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([provider, externalAccountId])
+  @@index([provider])
+  @@index([status])
+}
+
+model SyncLog {
+  id          Int       @id @default(autoincrement())
+  provider    String
+  status      String // Started, Succeeded, Failed
+  externalRef String?
+  message     String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([provider])
+  @@index([status])
+  @@index([startedAt])
 }
 
 model Invoice {

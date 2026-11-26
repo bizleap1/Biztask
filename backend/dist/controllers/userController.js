@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.grantPasswordReset = exports.deleteUser = exports.activateUser = exports.deactivateUser = exports.updateUser = exports.createUser = exports.getUserById = exports.getUsers = exports.getDepartments = void 0;
+exports.grantPasswordReset = exports.deleteUser = exports.activateUser = exports.deactivateUser = exports.updateUser = exports.createUser = exports.getUserById = exports.getUsers = exports.deleteDepartment = exports.updateDepartment = exports.createDepartment = exports.getDepartments = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const activityLogUtils_1 = require("../utils/activityLogUtils");
@@ -24,6 +24,89 @@ const getDepartments = async (req, res) => {
     }
 };
 exports.getDepartments = getDepartments;
+const createDepartment = async (req, res) => {
+    try {
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        if (name.length < 2)
+            return res.status(400).json({ message: 'Department name is required' });
+        const existing = await prismaClient_1.default.department.findUnique({ where: { name } });
+        if (existing)
+            return res.status(409).json({ message: 'Department already exists' });
+        const department = await prismaClient_1.default.department.create({ data: { name } });
+        await (0, activityLogUtils_1.createActivityLog)({
+            userId: req.user.id,
+            action: 'DEPARTMENT_CREATED',
+            entityType: 'Department',
+            entityId: department.id,
+            description: `Created department: ${department.name}`,
+            req
+        });
+        res.status(201).json(department);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.createDepartment = createDepartment;
+const updateDepartment = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        if (!Number.isInteger(id) || name.length < 2)
+            return res.status(400).json({ message: 'Valid department ID and name are required' });
+        const existing = await prismaClient_1.default.department.findUnique({ where: { id } });
+        if (!existing)
+            return res.status(404).json({ message: 'Department not found' });
+        const duplicate = await prismaClient_1.default.department.findUnique({ where: { name } });
+        if (duplicate && duplicate.id !== id)
+            return res.status(409).json({ message: 'Department name already exists' });
+        const department = await prismaClient_1.default.department.update({ where: { id }, data: { name } });
+        await (0, activityLogUtils_1.createActivityLog)({
+            userId: req.user.id,
+            action: 'DEPARTMENT_UPDATED',
+            entityType: 'Department',
+            entityId: id,
+            description: `Updated department: ${department.name}`,
+            req
+        });
+        res.json(department);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.updateDepartment = updateDepartment;
+const deleteDepartment = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const [userCount, teamCount, taskCount, projectCount] = await Promise.all([
+            prismaClient_1.default.user.count({ where: { departmentId: id } }),
+            prismaClient_1.default.team.count({ where: { departmentId: id } }),
+            prismaClient_1.default.task.count({ where: { departmentId: id, isDeleted: false } }),
+            prismaClient_1.default.project.count({ where: { departmentId: id } })
+        ]);
+        if (userCount || teamCount || taskCount || projectCount) {
+            return res.status(409).json({ message: 'Department has linked users, teams, tasks or projects and cannot be deleted' });
+        }
+        await prismaClient_1.default.department.delete({ where: { id } });
+        await (0, activityLogUtils_1.createActivityLog)({
+            userId: req.user.id,
+            action: 'DEPARTMENT_DELETED',
+            entityType: 'Department',
+            entityId: id,
+            description: `Deleted department ID ${id}`,
+            req
+        });
+        res.json({ message: 'Department deleted successfully' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.deleteDepartment = deleteDepartment;
 // @desc    Get all users
 const getUsers = async (req, res) => {
     try {

@@ -15,7 +15,15 @@ vi.mock('../middleware/authMiddleware', () => ({
 vi.mock('../controllers/portalController', () => ({
   getPortalOverview: (_req: any, res: any) => res.json({ clients: [{ id: 1 }] }),
   getPortalTasks: (_req: any, res: any) => res.json([]),
-  getPortalTaskById: (_req: any, res: any) => res.json({ id: 1, clientVisible: true })
+  getPortalTaskById: (_req: any, res: any) => res.json({ id: 1, clientVisible: true }),
+  approvePortalTask: (_req: any, res: any) => res.json({ id: 1 }),
+  getPortalInvoices: (_req: any, res: any) => res.json([]),
+  getPortalReports: (_req: any, res: any) => res.json([]),
+  getPortalRequests: (_req: any, res: any) => res.json([]),
+  createPortalRequest: (_req: any, res: any) => res.status(201).json({ id: 1 }),
+  convertPortalRequest: (_req: any, res: any) => res.status(201).json({ id: 1 }),
+  getIntegrationStatus: (_req: any, res: any) => res.json({ accounts: [], recentSyncs: [] }),
+  previewPortalAsClient: (_req: any, res: any) => res.json({ id: 1 })
 }));
 
 import portalRoutes from '../routes/portalRoutes';

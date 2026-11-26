@@ -9,6 +9,9 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const router = express_1.default.Router();
 router.get('/departments', authMiddleware_1.protect, userController_1.getDepartments);
+router.post('/departments', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), userController_1.createDepartment);
+router.put('/departments/:id', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), userController_1.updateDepartment);
+router.delete('/departments/:id', authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin'), userController_1.deleteDepartment);
 router.route('/')
     .get(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee'), userController_1.getUsers)
     .post(authMiddleware_1.protect, (0, roleMiddleware_1.authorizeRoles)('SuperAdmin', 'Manager'), userController_1.createUser);

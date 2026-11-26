@@ -11,7 +11,8 @@ This guide covers the step-by-step instructions for deploying the BizLeap Operat
    - **Transaction string**: (used for `DATABASE_URL`)
    - **Session string**: (used for `DIRECT_URL` - port 5432)
 3. Go to **Storage** and create a new bucket named exactly: `bizleap-proofs`.
-   - Ensure the bucket is set to **Public**.
+   - Ensure the bucket is set to **Private**.
+   - Do not use public URLs for submissions or client-visible files.
 4. Go to **Project Settings -> API** and copy:
    - Project URL (`SUPABASE_URL`)
    - `service_role` secret key (`SUPABASE_SERVICE_ROLE_KEY`)
