@@ -53,6 +53,7 @@ model Department {
   name         String        @unique
   users        User[]
   teams        Team[]
+  projects     Project[]
   tasks        Task[]
   dailyReports DailyReport[]
   createdAt    DateTime      @default(now())
@@ -99,12 +100,64 @@ model Client {
   accountManagerId Int?
   accountManager   User?              @relation("AccountManager", fields: [accountManagerId], references: [id])
   memberships      ClientMembership[]
+  contacts         ClientContact[]
+  projects         Project[]
+  tasks            Task[]
   isActive         Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
   @@index([accountManagerId])
   @@index([status])
+}
+
+model ClientContact {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  email       String?
+  phone       String?
+  designation String?
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+model Project {
+  id           Int         @id @default(autoincrement())
+  name         String
+  description  String?
+  clientId     Int
+  client       Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  departmentId Int?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  status       String      @default("Active") // Active, On Hold, Completed, Cancelled
+  startDate    DateTime?
+  endDate      DateTime?
+  tasks        Task[]
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([clientId])
+  @@index([departmentId])
+  @@index([status])
+}
+
+model Setting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  category    String   @default("General") // General, Notifications, Security, ClientRules
+  description String?
+  updatedById Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
 }
 
 model ClientMembership {
@@ -133,7 +186,11 @@ model Task {
   deadline       DateTime
   proofRequired  Boolean          @default(true)
   proofType      String?          // Image, PDF, Video, Link, Screenshot, GitHub PR, Website URL, Social Media Link
-  clientName     String?          // General Project Field
+  clientId       Int?
+  client         Client?          @relation(fields: [clientId], references: [id])
+  projectId      Int?
+  project        Project?         @relation(fields: [projectId], references: [id])
+  clientName     String?          // General Project Field (legacy/display fallback)
   clientDetails  String?          // General Project Field
   driveLink      String?          // General Project Field
   socialMediaPlatform String?     // Media Dept Field
@@ -155,6 +212,8 @@ model Task {
   @@index([status])
   @@index([departmentId])
   @@index([assignedToId])
+  @@index([clientId])
+  @@index([projectId])
   @@index([deadline])
 }
 

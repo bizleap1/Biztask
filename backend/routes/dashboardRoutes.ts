@@ -11,7 +11,7 @@ import {
 const router = express.Router();
 
 router.get('/admin', protect, authorizeRoles('SuperAdmin'), getAdminDashboard as any);
-router.get('/manager', protect, authorizeRoles('Manager'), getManagerDashboard as any);
+router.get('/manager', protect, authorizeRoles('Manager', 'TeamLead'), getManagerDashboard as any);
 router.get('/employee', protect, authorizeRoles('DevEmployee', 'MediaEmployee'), getEmployeeDashboard as any);
 router.get('/hr', protect, authorizeRoles('Viewer', 'SuperAdmin'), getHrDashboard as any);
 

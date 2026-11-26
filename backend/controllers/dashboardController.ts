@@ -1,12 +1,9 @@
+
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { calculateMonthlyReportRate } from '../utils/reportUtils';
 
 import prisma from '../prismaClient';
-import NodeCache from 'node-cache';
-
-const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
-
 interface StatusCountGroup {
   status: string;
   _count: { id: number };
@@ -43,10 +40,6 @@ interface EmployeeItem {
   department?: { name: string } | null;
 }
 
-export const clearDashboardCache = () => {
-  cache.flushAll();
-};
-
 // Helper to calculate performance score
 const calculatePerformanceScore = (approved: number, overdue: number, rejected: number, dailyReports: number) => {
   // Simple formula as requested
@@ -73,12 +66,6 @@ const getDateFilter = (startDate?: string, endDate?: string) => {
 export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
   try {
     const { startDate, endDate, department } = req.query;
-    
-    const cacheKey = `admin_${startDate || ''}_${endDate || ''}_${department || ''}`;
-    const cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json(cachedData);
-    }
 
     // Filters
     const hasExplicitDates = Boolean(startDate && endDate);
@@ -236,16 +223,54 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
       };
     });
 
+    const [atRiskSetting, atRiskClientsRaw] = await Promise.all([
+      prisma.setting.findUnique({ where: { key: 'client_at_risk_overdue_threshold' } }),
+      prisma.client.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          tasks: {
+            where: {
+              isDeleted: false,
+              status: { not: 'Approved' },
+              deadline: { lt: new Date() }
+            },
+            select: {
+              id: true,
+              title: true,
+              deadline: true,
+              assignedTo: { select: { id: true, name: true } }
+            },
+            orderBy: { deadline: 'asc' }
+          }
+        }
+      })
+    ]);
+
+    const parsedThreshold = Number(atRiskSetting?.value);
+    const atRiskThreshold = Number.isInteger(parsedThreshold) && parsedThreshold >= 1 ? parsedThreshold : 3;
+    const atRiskClients = atRiskClientsRaw
+      .map((client: any) => ({
+        id: client.id,
+        name: client.name,
+        status: client.status,
+        overdueTaskCount: client.tasks.length,
+        overdueTasks: client.tasks
+      }))
+      .filter((client: any) => client.status === 'At-Risk' || client.overdueTaskCount >= atRiskThreshold);
+
     const responseData = {
       totalEmployees, activeEmployees, inactiveEmployees,
       developmentTeamCount, mediaTeamCount, managementCount,
       totalTasks, pendingTasks, inProgressTasks, submittedTasks, approvedTasks, rejectedTasks, overdueTasks: overdueTasksCount,
       totalDailyReports, todayReports, missingReportsToday, reportsNeedingCorrection, reviewedReports,
       pendingReviewSubmissions, recentTaskSubmissions, recentDailyReports, recentActivityLogs,
-      departmentWiseTaskStats, departmentWiseReportStats, employeePerformanceSummary, upcomingDeadlines, overdueTaskList
+      departmentWiseTaskStats, departmentWiseReportStats, employeePerformanceSummary, upcomingDeadlines, overdueTaskList,
+      atRiskThreshold, atRiskClients
     };
 
-    cache.set(cacheKey, responseData);
     res.json(responseData);
   } catch (error) {
     console.error(error);
@@ -256,17 +281,11 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
 export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
   try {
     const { startDate, endDate } = req.query;
-    const cacheKey = `manager_${startDate || ''}_${endDate || ''}`;
-    const cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json(cachedData);
-    }
-
     const hasExplicitDates = Boolean(startDate && endDate);
     const dateFilter = getDateFilter(startDate as string, endDate as string);
     const createdAtFilter = hasExplicitDates ? { createdAt: dateFilter } : {};
     const reportDateFilter = hasExplicitDates ? { reportDate: dateFilter } : {};
-    const deptFilter = {};
+    const deptFilter = req.user?.departmentId ? { departmentId: req.user.departmentId } : {};
 
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -393,7 +412,6 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
       teamPerformanceSummary, upcomingTeamDeadlines, overdueTeamTaskList, departmentTaskStats
     };
 
-    cache.set(cacheKey, responseData);
     res.json(responseData);
   } catch (error) {
     console.error(error);
@@ -404,12 +422,6 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
 export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const cacheKey = `employee_${userId}`;
-    const cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json(cachedData);
-    }
-
     const today = new Date();
     today.setHours(0,0,0,0);
     const tomorrow = new Date(today);
@@ -458,7 +470,6 @@ export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
       myTaskCompletionRate, myReportSubmissionRate
     };
 
-    cache.set(cacheKey, responseData);
     res.json(responseData);
   } catch (error) {
     console.error(error);
@@ -468,12 +479,6 @@ export const getEmployeeDashboard = async (req: AuthRequest, res: Response) => {
 
 export const getHrDashboard = async (req: AuthRequest, res: Response) => {
   try {
-    const cacheKey = `hr_dashboard`;
-    const cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      return res.json(cachedData);
-    }
-
     const today = new Date();
     today.setHours(0,0,0,0);
     const tomorrow = new Date(today);
@@ -517,7 +522,6 @@ export const getHrDashboard = async (req: AuthRequest, res: Response) => {
       departmentWiseEmployees, dailyReportCompliance, taskCompletionOverview, recentReports
     };
 
-    cache.set(cacheKey, responseData);
     res.json(responseData);
   } catch (error) {
     console.error(error);

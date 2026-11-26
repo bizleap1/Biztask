@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { dashboardService } from '../../services/dashboardService';
 import { Users, FileText, AlertTriangle, LayoutDashboard, Target, Activity, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function ManagerDashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ startDate: '', endDate: '' });
@@ -71,7 +72,7 @@ export default function ManagerDashboard() {
 
       {/* Primary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div onClick={() => navigate('/tasks')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Team Size</p>
@@ -82,7 +83,7 @@ export default function ManagerDashboard() {
           <p className="text-xs text-green-600 mt-3 font-medium">{data.activeTeamEmployees} Active</p>
         </div>
         
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div onClick={() => navigate('/tasks?overdue=true')} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-gray-500 text-sm font-medium">Total Tasks</p>
@@ -126,7 +127,17 @@ export default function ManagerDashboard() {
               {taskStatusData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={taskStatusData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={2} dataKey="value">
+                    <Pie
+                      data={taskStatusData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={70}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                      onClick={(entry: any) => navigate(`/tasks?status=${encodeURIComponent(entry.name)}`)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       {taskStatusData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                     </Pie>
                     <RechartsTooltip />

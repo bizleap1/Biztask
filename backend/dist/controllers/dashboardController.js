@@ -3,15 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getHrDashboard = exports.getEmployeeDashboard = exports.getManagerDashboard = exports.getAdminDashboard = exports.clearDashboardCache = void 0;
+exports.getHrDashboard = exports.getEmployeeDashboard = exports.getManagerDashboard = exports.getAdminDashboard = void 0;
 const reportUtils_1 = require("../utils/reportUtils");
 const prismaClient_1 = __importDefault(require("../prismaClient"));
-const node_cache_1 = __importDefault(require("node-cache"));
-const cache = new node_cache_1.default({ stdTTL: 300 }); // 5 minutes cache
-const clearDashboardCache = () => {
-    cache.flushAll();
-};
-exports.clearDashboardCache = clearDashboardCache;
 // Helper to calculate performance score
 const calculatePerformanceScore = (approved, overdue, rejected, dailyReports) => {
     // Simple formula as requested
@@ -36,11 +30,6 @@ const getDateFilter = (startDate, endDate) => {
 const getAdminDashboard = async (req, res) => {
     try {
         const { startDate, endDate, department } = req.query;
-        const cacheKey = `admin_${startDate || ''}_${endDate || ''}_${department || ''}`;
-        const cachedData = cache.get(cacheKey);
-        if (cachedData) {
-            return res.json(cachedData);
-        }
         // Filters
         const hasExplicitDates = Boolean(startDate && endDate);
         const dateFilter = getDateFilter(startDate, endDate);
@@ -170,15 +159,51 @@ const getAdminDashboard = async (req, res) => {
                 score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empDailyReports)
             };
         });
+        const [atRiskSetting, atRiskClientsRaw] = await Promise.all([
+            prismaClient_1.default.setting.findUnique({ where: { key: 'client_at_risk_overdue_threshold' } }),
+            prismaClient_1.default.client.findMany({
+                where: { isActive: true },
+                select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                    tasks: {
+                        where: {
+                            isDeleted: false,
+                            status: { not: 'Approved' },
+                            deadline: { lt: new Date() }
+                        },
+                        select: {
+                            id: true,
+                            title: true,
+                            deadline: true,
+                            assignedTo: { select: { id: true, name: true } }
+                        },
+                        orderBy: { deadline: 'asc' }
+                    }
+                }
+            })
+        ]);
+        const parsedThreshold = Number(atRiskSetting?.value);
+        const atRiskThreshold = Number.isInteger(parsedThreshold) && parsedThreshold >= 1 ? parsedThreshold : 3;
+        const atRiskClients = atRiskClientsRaw
+            .map((client) => ({
+            id: client.id,
+            name: client.name,
+            status: client.status,
+            overdueTaskCount: client.tasks.length,
+            overdueTasks: client.tasks
+        }))
+            .filter((client) => client.status === 'At-Risk' || client.overdueTaskCount >= atRiskThreshold);
         const responseData = {
             totalEmployees, activeEmployees, inactiveEmployees,
             developmentTeamCount, mediaTeamCount, managementCount,
             totalTasks, pendingTasks, inProgressTasks, submittedTasks, approvedTasks, rejectedTasks, overdueTasks: overdueTasksCount,
             totalDailyReports, todayReports, missingReportsToday, reportsNeedingCorrection, reviewedReports,
             pendingReviewSubmissions, recentTaskSubmissions, recentDailyReports, recentActivityLogs,
-            departmentWiseTaskStats, departmentWiseReportStats, employeePerformanceSummary, upcomingDeadlines, overdueTaskList
+            departmentWiseTaskStats, departmentWiseReportStats, employeePerformanceSummary, upcomingDeadlines, overdueTaskList,
+            atRiskThreshold, atRiskClients
         };
-        cache.set(cacheKey, responseData);
         res.json(responseData);
     }
     catch (error) {
@@ -190,16 +215,11 @@ exports.getAdminDashboard = getAdminDashboard;
 const getManagerDashboard = async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const cacheKey = `manager_${startDate || ''}_${endDate || ''}`;
-        const cachedData = cache.get(cacheKey);
-        if (cachedData) {
-            return res.json(cachedData);
-        }
         const hasExplicitDates = Boolean(startDate && endDate);
         const dateFilter = getDateFilter(startDate, endDate);
         const createdAtFilter = hasExplicitDates ? { createdAt: dateFilter } : {};
         const reportDateFilter = hasExplicitDates ? { reportDate: dateFilter } : {};
-        const deptFilter = {};
+        const deptFilter = req.user?.departmentId ? { departmentId: req.user.departmentId } : {};
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
@@ -302,7 +322,6 @@ const getManagerDashboard = async (req, res) => {
             pendingReviewSubmissions, recentTeamSubmissions, recentTeamReports, recentActivityLogs,
             teamPerformanceSummary, upcomingTeamDeadlines, overdueTeamTaskList, departmentTaskStats
         };
-        cache.set(cacheKey, responseData);
         res.json(responseData);
     }
     catch (error) {
@@ -314,11 +333,6 @@ exports.getManagerDashboard = getManagerDashboard;
 const getEmployeeDashboard = async (req, res) => {
     try {
         const userId = req.user.id;
-        const cacheKey = `employee_${userId}`;
-        const cachedData = cache.get(cacheKey);
-        if (cachedData) {
-            return res.json(cachedData);
-        }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
@@ -356,7 +370,6 @@ const getEmployeeDashboard = async (req, res) => {
             myRecentTasks, myUpcomingDeadlines, myRejectedTasksWithFeedback, myRecentDailyReports,
             myTaskCompletionRate, myReportSubmissionRate
         };
-        cache.set(cacheKey, responseData);
         res.json(responseData);
     }
     catch (error) {
@@ -367,11 +380,6 @@ const getEmployeeDashboard = async (req, res) => {
 exports.getEmployeeDashboard = getEmployeeDashboard;
 const getHrDashboard = async (req, res) => {
     try {
-        const cacheKey = `hr_dashboard`;
-        const cachedData = cache.get(cacheKey);
-        if (cachedData) {
-            return res.json(cachedData);
-        }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
@@ -406,7 +414,6 @@ const getHrDashboard = async (req, res) => {
             totalEmployees, activeEmployees, inactiveEmployees,
             departmentWiseEmployees, dailyReportCompliance, taskCompletionOverview, recentReports
         };
-        cache.set(cacheKey, responseData);
         res.json(responseData);
     }
     catch (error) {

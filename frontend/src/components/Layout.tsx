@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar } from 'lucide-react';
+import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar, Briefcase, BarChart3 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo';
 import api from '../services/api';
@@ -99,6 +99,9 @@ export default function Layout() {
               <Link to="/teams" className={getLinkClass('/teams')} onClick={() => setSidebarOpen(false)}>
                 <Users size={18} /> Teams
               </Link>
+              <Link to="/analytics" className={getLinkClass('/analytics')} onClick={() => setSidebarOpen(false)}>
+                <BarChart3 size={18} /> Analytics
+              </Link>
             </>
           )}
           {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'Viewer') && (
@@ -109,6 +112,11 @@ export default function Layout() {
           {user.role === 'SuperAdmin' && (
             <Link to="/settings" className={getLinkClass('/settings')} onClick={() => setSidebarOpen(false)}>
               <Settings size={18} /> Settings
+            </Link>
+          )}
+          {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'TeamLead' || user.role === 'Employee') && (
+            <Link to="/clients" className={getLinkClass('/clients')} onClick={() => setSidebarOpen(false)}>
+              <Briefcase size={18} /> Clients
             </Link>
           )}
               </>

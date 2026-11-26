@@ -18,6 +18,10 @@ import uploadRoutes from './routes/uploadRoutes';
 import systemRoutes from './routes/systemRoutes';
 import aiRoutes from './routes/aiRoutes';
 import teamRoutes from './routes/teamRoutes';
+import clientRoutes from './routes/clientRoutes';
+import projectRoutes from './routes/projectRoutes';
+import settingRoutes from './routes/settingRoutes';
+import analyticsRoutes from './routes/analyticsRoutes';
 
 const app = express();
 import prisma from './prismaClient';
@@ -65,6 +69,10 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/teams', teamRoutes);
+app.use('/api/clients', clientRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/settings', settingRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Other routes will be added later
 

@@ -33,6 +33,7 @@ export default function Tasks() {
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [deptFilter, setDeptFilter] = useState('');
   const [search, setSearch] = useState('');
+  const overdueOnly = searchParams.get('overdue') === 'true';
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -241,7 +242,10 @@ export default function Tasks() {
     const matchStatus = statusFilter ? t.status === statusFilter : true;
     const matchDept = deptFilter ? t.departmentId === Number(deptFilter) : true;
     const matchSearch = t.title.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchDept && matchSearch;
+    const matchOverdue = overdueOnly
+      ? t.status !== 'Approved' && new Date(t.deadline).getTime() < Date.now()
+      : true;
+    return matchStatus && matchDept && matchSearch && matchOverdue;
   });
 
   const availableCategories = formData.departmentId === '2' ? DEV_CATEGORIES : formData.departmentId === '3' ? MEDIA_CATEGORIES : [];

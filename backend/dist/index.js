@@ -22,6 +22,10 @@ const uploadRoutes_1 = __importDefault(require("./routes/uploadRoutes"));
 const systemRoutes_1 = __importDefault(require("./routes/systemRoutes"));
 const aiRoutes_1 = __importDefault(require("./routes/aiRoutes"));
 const teamRoutes_1 = __importDefault(require("./routes/teamRoutes"));
+const clientRoutes_1 = __importDefault(require("./routes/clientRoutes"));
+const projectRoutes_1 = __importDefault(require("./routes/projectRoutes"));
+const settingRoutes_1 = __importDefault(require("./routes/settingRoutes"));
+const analyticsRoutes_1 = __importDefault(require("./routes/analyticsRoutes"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -62,6 +66,10 @@ app.use('/api/upload', uploadRoutes_1.default);
 app.use('/api/system', systemRoutes_1.default);
 app.use('/api/ai', aiRoutes_1.default);
 app.use('/api/teams', teamRoutes_1.default);
+app.use('/api/clients', clientRoutes_1.default);
+app.use('/api/projects', projectRoutes_1.default);
+app.use('/api/settings', settingRoutes_1.default);
+app.use('/api/analytics', analyticsRoutes_1.default);
 // Other routes will be added later
 if (process.env.NODE_ENV !== 'test' && (process.env.NODE_ENV !== 'production' || !process.env.VERCEL)) {
     app.listen(PORT, () => {

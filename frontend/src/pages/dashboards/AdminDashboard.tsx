@@ -315,6 +315,16 @@ export default function AdminDashboard() {
                 </div>
                 <span className="text-xl font-bold text-orange-600">{data.reportsNeedingCorrection}</span>
               </div>
+              <button
+                onClick={() => navigate('/clients')}
+                className="w-full flex justify-between items-center p-3 bg-red-50 rounded-lg border border-red-100 text-left hover:bg-red-100 transition-colors"
+              >
+                <div>
+                  <p className="text-sm font-bold text-red-900">At-Risk Clients</p>
+                  <p className="text-xs text-red-700 mt-0.5">Threshold: {data.atRiskThreshold || 3} overdue tasks</p>
+                </div>
+                <span className="text-xl font-bold text-red-600">{data.atRiskClients?.length || 0}</span>
+              </button>
             </div>
           </div>
 

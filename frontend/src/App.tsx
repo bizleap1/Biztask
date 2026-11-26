@@ -15,6 +15,9 @@ import Notifications from './pages/Notifications';
 import ActivityLogs from './pages/ActivityLogs';
 import Teams from './pages/Teams';
 import ContentCalendar from './pages/ContentCalendar';
+import Settings from './pages/Settings';
+import Clients from './pages/Clients';
+import Analytics from './pages/Analytics';
 import { AuthGuard } from './components/AuthGuard';
 
 function App() {
@@ -38,11 +41,8 @@ function App() {
             <Employees />
           </AuthGuard>
         } />
-        <Route path="teams" element={
-          <AuthGuard allowedRoles={['SuperAdmin', 'Manager']}>
-            <Teams />
-          </AuthGuard>
-        } />
+        <Route path="teams" element={<AuthGuard allowedRoles={['SuperAdmin', 'Manager']}><Teams /></AuthGuard>} />
+          <Route path="clients" element={<AuthGuard allowedRoles={['SuperAdmin','Manager','TeamLead','Employee']}><Clients /></AuthGuard>} />
         <Route path="tasks" element={
           <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'TeamLead']}>
             <Tasks />
@@ -88,7 +88,12 @@ function App() {
         } />
         <Route path="settings" element={
           <AuthGuard allowedRoles={['SuperAdmin']}>
-            <div className="p-4 bg-white rounded-xl shadow-pepper">Settings Feature Coming Soon</div>
+            <Settings />
+          </AuthGuard>
+        } />
+        <Route path="analytics" element={
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager']}>
+            <Analytics />
           </AuthGuard>
         } />
       </Route>

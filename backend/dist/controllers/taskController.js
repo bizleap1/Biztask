@@ -12,13 +12,21 @@ const prismaClient_1 = __importDefault(require("../prismaClient"));
 // @access  Private/SuperAdmin, Manager
 const createTask = async (req, res) => {
     try {
-        const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment } = req.body;
+        const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType, clientId, projectId, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment } = req.body;
         // Validate assigned employee belongs to department
         if (assignedToId) {
             const user = await prismaClient_1.default.user.findUnique({ where: { id: Number(assignedToId) } });
             if (!user || user.departmentId !== Number(departmentId)) {
                 return res.status(400).json({ message: 'Assigned employee must belong to the selected department.' });
             }
+        }
+        let resolvedClientName = clientName;
+        const parsedClientId = clientId ? Number(clientId) : null;
+        const parsedProjectId = projectId ? Number(projectId) : null;
+        if (parsedClientId && !resolvedClientName) {
+            const clientRecord = await prismaClient_1.default.client.findUnique({ where: { id: parsedClientId }, select: { name: true } });
+            if (clientRecord)
+                resolvedClientName = clientRecord.name;
         }
         const task = await prismaClient_1.default.task.create({
             data: {
@@ -33,7 +41,9 @@ const createTask = async (req, res) => {
                 proofRequired: proofRequired ?? true,
                 proofType,
                 status: 'Pending',
-                clientName,
+                clientId: parsedClientId,
+                projectId: parsedProjectId,
+                clientName: resolvedClientName,
                 clientDetails,
                 driveLink,
                 socialMediaPlatform,
@@ -111,6 +121,10 @@ const getTasks = async (req, res) => {
             whereClause.priority = String(req.query.priority);
         if (req.query.assignedToId)
             whereClause.assignedToId = Number(req.query.assignedToId);
+        if (req.query.clientId)
+            whereClause.clientId = Number(req.query.clientId);
+        if (req.query.projectId)
+            whereClause.projectId = Number(req.query.projectId);
         // Check for overdue status dynamically if requested, otherwise return all
         // Since overdue is derived, we handle standard statuses here
         const tasks = await prismaClient_1.default.task.findMany({
@@ -119,6 +133,8 @@ const getTasks = async (req, res) => {
                 assignedTo: { select: { id: true, name: true, role: true } },
                 assignedBy: { select: { id: true, name: true, role: true } },
                 department: { select: { id: true, name: true } },
+                client: { select: { id: true, name: true } },
+                project: { select: { id: true, name: true } },
             },
             orderBy: { createdAt: 'desc' }
         });
