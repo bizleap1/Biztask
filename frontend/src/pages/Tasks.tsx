@@ -4,6 +4,7 @@ import { Plus, Search, Trash2, FileText, Edit, Mic, MicOff, Loader2 } from 'luci
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 import { aiService } from '../services/aiService';
+import api from '../services/api';
 
 const DEV_CATEGORIES = [
   'Website Development', 'Frontend Change', 'Backend API', 'Bug Fix',
@@ -28,6 +29,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'error' | 'unavailable'>('connecting');
 
   // Filters
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
@@ -85,6 +87,56 @@ export default function Tasks() {
     fetchTasks();
     fetchEmployees();
   }, []);
+
+  useEffect(() => {
+    if (!isAdminOrSuper) return;
+
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    let lastSnapshot = '';
+    setRealtimeStatus('connecting');
+
+    import('../services/neonRealtime')
+      .then(({ neonRealtimeClient: realtimeClient }) => {
+        if (!active) return;
+        if (!realtimeClient) {
+          setRealtimeStatus('unavailable');
+          return;
+        }
+
+        return api.post('/neon/realtime/seal-tasks')
+          .then(({ data }) => {
+            if (!active) return;
+
+            const subscription = realtimeClient.subscribe(data.sealed);
+            unsubscribe = subscription.onChange(snapshot => {
+              if (snapshot.status === 'error') {
+                setRealtimeStatus('error');
+                console.error('Neon Realtime task subscription failed:', snapshot.error);
+                return;
+              }
+              if (snapshot.status !== 'live' || snapshot.data === undefined) return;
+
+              setRealtimeStatus('live');
+              const currentSnapshot = JSON.stringify(snapshot.data);
+              if (currentSnapshot !== lastSnapshot) {
+                lastSnapshot = currentSnapshot;
+                void fetchTasks();
+              }
+            });
+          });
+      })
+      .catch(error => {
+        if (!active) return;
+        setRealtimeStatus('error');
+        console.error('Failed to start Neon Realtime task updates:', error);
+      });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [isAdminOrSuper]);
 
   const handleMicClick = async () => {
     if (isRecording) {
@@ -258,6 +310,11 @@ export default function Tasks() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Task Management</h1>
           <p className="text-gray-500 text-sm mt-1">Assign and track all company tasks.</p>
+          {isAdminOrSuper && (
+            <p className="text-xs text-gray-500 mt-1" role="status">
+              Task live updates: {realtimeStatus === 'live' ? 'Connected' : realtimeStatus === 'connecting' ? 'Connecting' : realtimeStatus === 'error' ? 'Unavailable' : 'Not configured'}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {isAdminOrSuper && (

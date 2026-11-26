@@ -30,6 +30,7 @@ import crmRoutes from './routes/crmRoutes';
 import financeRoutes from './routes/financeRoutes';
 import attendanceRoutes from './routes/attendanceRoutes';
 import portalRoutes from './routes/portalRoutes';
+import neonRoutes from './routes/neonRoutes';
 import { startScheduler } from './workers/scheduler';
 
 const app = express();
@@ -103,6 +104,7 @@ app.use('/api/crm', crmRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/neon', neonRoutes);
 
 // Other routes will be added later
 

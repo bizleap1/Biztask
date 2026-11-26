@@ -34,6 +34,7 @@ const crmRoutes_1 = __importDefault(require("./routes/crmRoutes"));
 const financeRoutes_1 = __importDefault(require("./routes/financeRoutes"));
 const attendanceRoutes_1 = __importDefault(require("./routes/attendanceRoutes"));
 const portalRoutes_1 = __importDefault(require("./routes/portalRoutes"));
+const neonRoutes_1 = __importDefault(require("./routes/neonRoutes"));
 const scheduler_1 = require("./workers/scheduler");
 const app = (0, express_1.default)();
 const prismaClient_1 = __importDefault(require("./prismaClient"));
@@ -101,6 +102,7 @@ app.use('/api/crm', crmRoutes_1.default);
 app.use('/api/finance', financeRoutes_1.default);
 app.use('/api/attendance', attendanceRoutes_1.default);
 app.use('/api/portal', portalRoutes_1.default);
+app.use('/api/neon', neonRoutes_1.default);
 // Other routes will be added later
 if (process.env.NODE_ENV !== 'test' && (process.env.NODE_ENV !== 'production' || !process.env.VERCEL)) {
     (0, scheduler_1.startScheduler)();
