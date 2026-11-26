@@ -24,6 +24,11 @@ import settingRoutes from './routes/settingRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import reminderRoutes from './routes/reminderRoutes';
 import meetingRoutes from './routes/meetingRoutes';
+import schedulerRoutes from './routes/schedulerRoutes';
+import crmRoutes from './routes/crmRoutes';
+import financeRoutes from './routes/financeRoutes';
+import attendanceRoutes from './routes/attendanceRoutes';
+import { startScheduler } from './workers/scheduler';
 
 const app = express();
 import prisma from './prismaClient';
@@ -77,10 +82,15 @@ app.use('/api/settings', settingRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/meetings', meetingRoutes);
+app.use('/api/scheduler', schedulerRoutes);
+app.use('/api/crm', crmRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Other routes will be added later
 
 if (process.env.NODE_ENV !== 'test' && (process.env.NODE_ENV !== 'production' || !process.env.VERCEL)) {
+  startScheduler();
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });

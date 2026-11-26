@@ -28,6 +28,11 @@ const settingRoutes_1 = __importDefault(require("./routes/settingRoutes"));
 const analyticsRoutes_1 = __importDefault(require("./routes/analyticsRoutes"));
 const reminderRoutes_1 = __importDefault(require("./routes/reminderRoutes"));
 const meetingRoutes_1 = __importDefault(require("./routes/meetingRoutes"));
+const schedulerRoutes_1 = __importDefault(require("./routes/schedulerRoutes"));
+const crmRoutes_1 = __importDefault(require("./routes/crmRoutes"));
+const financeRoutes_1 = __importDefault(require("./routes/financeRoutes"));
+const attendanceRoutes_1 = __importDefault(require("./routes/attendanceRoutes"));
+const scheduler_1 = require("./workers/scheduler");
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -74,8 +79,13 @@ app.use('/api/settings', settingRoutes_1.default);
 app.use('/api/analytics', analyticsRoutes_1.default);
 app.use('/api/reminders', reminderRoutes_1.default);
 app.use('/api/meetings', meetingRoutes_1.default);
+app.use('/api/scheduler', schedulerRoutes_1.default);
+app.use('/api/crm', crmRoutes_1.default);
+app.use('/api/finance', financeRoutes_1.default);
+app.use('/api/attendance', attendanceRoutes_1.default);
 // Other routes will be added later
 if (process.env.NODE_ENV !== 'test' && (process.env.NODE_ENV !== 'production' || !process.env.VERCEL)) {
+    (0, scheduler_1.startScheduler)();
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });

@@ -11,6 +11,7 @@ import {
   X,
   Copy,
   Check,
+  Play,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -86,6 +87,13 @@ export default function Reminders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Scheduler state (SuperAdmin only)
+  const userStr = sessionStorage.getItem('user');
+  const currentUser = JSON.parse(userStr || '{}') as { role?: string };
+  const isSuperAdmin = currentUser.role === 'SuperAdmin';
+  const [schedulerRunning, setSchedulerRunning] = useState(false);
+  const [schedulerResult, setSchedulerResult] = useState<string | null>(null);
+
   // Modal state for WhatsApp or Email draft
   const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'email' | null>(null);
   const [selectedReminder, setSelectedReminder] = useState<UnifiedReminder | null>(null);
@@ -96,6 +104,21 @@ export default function Reminders() {
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [modalError, setModalError] = useState('');
+
+  const runSchedulerNow = async () => {
+    setSchedulerRunning(true);
+    setSchedulerResult(null);
+    try {
+      const { data } = await api.post<{ results: Array<{ job: string; processed: number; skipped: number; errors: number }> }>('/scheduler/run');
+      const summary = data.results.map(r => `${r.job}: ${r.processed} sent, ${r.skipped} skipped`).join(' | ');
+      setSchedulerResult(`✓ Jobs ran: ${summary}`);
+      void fetchReminders();
+    } catch {
+      setSchedulerResult('✗ Scheduler error — check server logs');
+    } finally {
+      setSchedulerRunning(false);
+    }
+  };
 
   const fetchReminders = useCallback(async () => {
     setLoading(true);
@@ -248,7 +271,22 @@ export default function Reminders() {
         >
           <RefreshCw size={16} /> Refresh
         </button>
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => void runSchedulerNow()}
+            disabled={schedulerRunning}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors self-start sm:self-auto disabled:opacity-60"
+          >
+            <Play size={16} /> {schedulerRunning ? 'Running…' : 'Run Jobs Now'}
+          </button>
+        )}
       </div>
+      {schedulerResult && (
+        <div className={`text-xs px-3 py-1.5 rounded-lg ${schedulerResult.startsWith('✓') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {schedulerResult}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

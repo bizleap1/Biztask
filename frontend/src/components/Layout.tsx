@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar, Briefcase, BarChart3, BellRing } from 'lucide-react';
+import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar, Briefcase, BarChart3, BellRing, TrendingUp, WalletCards, Clock } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo';
 import api from '../services/api';
@@ -127,6 +127,19 @@ export default function Layout() {
               <Briefcase size={18} /> Clients
             </Link>
           )}
+          {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'TeamLead' || user.role === 'Employee') && (
+            <Link to="/sales" className={getLinkClass('/sales')} onClick={() => setSidebarOpen(false)}>
+              <TrendingUp size={18} /> Sales Pipeline
+            </Link>
+          )}
+          {(user.role === 'SuperAdmin' || user.role === 'Manager') && (
+            <Link to="/finance" className={getLinkClass('/finance')} onClick={() => setSidebarOpen(false)}>
+              <WalletCards size={18} /> Finance
+            </Link>
+          )}
+          <Link to="/attendance" className={getLinkClass('/attendance')} onClick={() => setSidebarOpen(false)}>
+            <Clock size={18} /> Attendance
+          </Link>
               </>
             );
           })()}

@@ -20,6 +20,9 @@ import Clients from './pages/Clients';
 import Analytics from './pages/Analytics';
 import Reminders from './pages/Reminders';
 import Meetings from './pages/Meetings';
+import SalesPipeline from './pages/SalesPipeline';
+import Finance from './pages/Finance';
+import Attendance from './pages/Attendance';
 import { AuthGuard } from './components/AuthGuard';
 
 function App() {
@@ -108,6 +111,13 @@ function App() {
             <Meetings />
           </AuthGuard>
         } />
+        <Route path="sales" element={
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'TeamLead', 'Employee']}>
+            <SalesPipeline />
+          </AuthGuard>
+        } />
+        <Route path="finance" element={<AuthGuard allowedRoles={['SuperAdmin','Manager']}><Finance /></AuthGuard>} />
+        <Route path="attendance" element={<Attendance />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

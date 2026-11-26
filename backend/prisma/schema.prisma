@@ -45,6 +45,12 @@ model User {
   meetingAttendances     MeetingAttendee[]
   meetingMinutes         MeetingMinute[]
   meetingActionItems     MeetingActionItem[] @relation("ActionItemAssignee")
+  ownedLeads             Lead[]              @relation("LeadOwner")
+  leadActivities         LeadActivity[]
+  deals                  Deal[]              @relation("DealOwner")
+  attendanceRecords      Attendance[]
+  leaveRequests          LeaveRequest[]
+  leaveApprovals         LeaveRequest[]      @relation("LeaveApprover")
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
 
@@ -108,6 +114,8 @@ model Client {
   projects         Project[]
   tasks            Task[]
   meetings         Meeting[]
+  deals            Deal[]
+  invoices         Invoice[]
   isActive         Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -301,6 +309,87 @@ model MeetingActionItem {
   @@index([assigneeId])
 }
 
+model Campaign {
+  id        Int      @id @default(autoincrement())
+  name      String
+  source    String?
+  status    String   @default("Active")
+  leads     Lead[]
+  deals     Deal[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model Lead {
+  id                Int            @id @default(autoincrement())
+  name              String
+  companyName       String?
+  email             String?
+  phone             String?
+  source            String?
+  stage             String         @default("New") // New, Contacted, Proposal, Negotiation, Won, Lost
+  dealValue         Decimal        @default(0)
+  expectedRevenue   Decimal        @default(0)
+  ownerId           Int
+  owner             User           @relation("LeadOwner", fields: [ownerId], references: [id])
+  campaignId        Int?
+  campaign          Campaign?      @relation(fields: [campaignId], references: [id])
+  nextFollowUpAt    DateTime?
+  lostReason        String?
+  convertedClientId Int?
+  deal              Deal?
+  activities        LeadActivity[]
+  isDeleted         Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([stage])
+  @@index([ownerId])
+  @@index([campaignId])
+  @@index([nextFollowUpAt])
+}
+
+model LeadActivity {
+  id         Int       @id @default(autoincrement())
+  leadId     Int
+  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id])
+  type       String    @default("Note") // Call, Email, Meeting, Proposal, Note
+  subject    String
+  notes      String?
+  outcome    String?
+  followUpAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([followUpAt])
+}
+
+model Deal {
+  id              Int       @id @default(autoincrement())
+  leadId          Int       @unique
+  lead            Lead      @relation(fields: [leadId], references: [id])
+  clientId        Int?
+  client          Client?   @relation(fields: [clientId], references: [id])
+  ownerId         Int
+  owner           User      @relation("DealOwner", fields: [ownerId], references: [id])
+  campaignId      Int?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id])
+  dealValue       Decimal   @default(0)
+  revenue         Decimal   @default(0)
+  collectedAmount Decimal   @default(0)
+  status          String    @default("Won")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([ownerId])
+  @@index([clientId])
+  @@index([campaignId])
+}
+
 model TaskSubmission {
   id                   Int       @id @default(autoincrement())
   taskId               Int
@@ -353,6 +442,40 @@ model DailyReport {
   @@index([departmentId])
 }
 
+model ScheduledJob {
+  id         Int                   @id @default(autoincrement())
+  name       String                @unique
+  schedule   String?
+  enabled    Boolean               @default(true)
+  lastRunAt  DateTime?
+  lastStatus String?
+  attempts   ScheduledJobAttempt[]
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([enabled])
+}
+
+model ScheduledJobAttempt {
+  id             Int           @id @default(autoincrement())
+  jobId          Int?
+  job            ScheduledJob? @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobName        String
+  status         String        @default("Running") // Running, Succeeded, Failed
+  startedAt      DateTime      @default(now())
+  completedAt    DateTime?
+  processed      Int           @default(0)
+  skipped        Int           @default(0)
+  errors         Int           @default(0)
+  errorMessage   String?
+  idempotencyKey String?       @unique
+  createdAt      DateTime      @default(now())
+
+  @@index([jobName])
+  @@index([status])
+  @@index([startedAt])
+}
+
 model Notification {
   id         Int      @id @default(autoincrement())
   userId     Int
@@ -393,4 +516,111 @@ model Comment {
   user      User     @relation(fields: [userId], references: [id])
   content   String
   createdAt DateTime @default(now())
+}
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  invoiceNumber String        @unique
+  clientId      Int
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  status        String        @default("Draft") // Draft, Issued, PartiallyPaid, Paid, Overdue, Cancelled
+  subtotal      Decimal       @default(0)
+  cgstAmount    Decimal       @default(0)
+  sgstAmount    Decimal       @default(0)
+  igstAmount    Decimal       @default(0)
+  totalAmount   Decimal       @default(0)
+  amountPaid    Decimal       @default(0)
+  snapshot      Json?
+  issuedAt      DateTime?
+  items         InvoiceItem[]
+  receipts      Receipt[]
+  createdById   Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal @default(1)
+  unitPrice   Decimal @default(0)
+  taxRate     Decimal @default(0)
+  lineTotal   Decimal @default(0)
+
+  @@index([invoiceId])
+}
+
+model Receipt {
+  id            Int      @id @default(autoincrement())
+  invoiceId     Int
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount        Decimal
+  receiptNumber String   @unique
+  receivedAt    DateTime @default(now())
+  method        String   @default("Bank")
+  reference     String?
+  notes         String?
+  createdById   Int?
+  createdAt     DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([receivedAt])
+}
+
+model Attendance {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workDate    DateTime
+  checkInAt   DateTime?
+  checkOutAt  DateTime?
+  status      String    @default("Present") // Present, Late, Half-Day, Absent
+  source      String    @default("Manual") // Manual, Petpooja, Google
+  externalRef String?
+  isDeleted   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, workDate, externalRef], map: "Attendance_user_workDate_externalRef_key")
+  @@index([userId])
+  @@index([workDate])
+  @@index([externalRef])
+}
+
+model LeaveRequest {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approverId Int?
+  approver   User?    @relation("LeaveApprover", fields: [approverId], references: [id])
+  leaveType  String   @default("Casual")
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  status     String   @default("Pending") // Pending, Approved, Rejected
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  name      String
+  date      DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([date])
+  @@index([isActive])
 }
