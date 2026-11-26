@@ -1,20 +1,50 @@
-import React, { useState, useRef } from 'react';
-import { Calendar, Download, Image as ImageIcon, Briefcase, Share2, Upload, Sparkles, PlayCircle, Copy, Target, MessageCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Calendar as CalendarIcon,
+  Download,
+  Image as ImageIcon,
+  Sparkles,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  Filter,
+  Trash2
+} from 'lucide-react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
+import api from '../services/api';
+import {
+  contentCalendarService
+} from '../services/contentCalendarService';
+import type {
+  ContentCalendar as IContentCalendar,
+  ContentItem as IContentItem
+} from '../services/contentCalendarService';
 
-interface ContentEntry {
-  id: string;
-  date: string;
-  platform: string;
-  type: string;
-  topic?: string;
-  content: string;
-  objective?: string;
-  visualIdea?: string;
+interface ClientOption {
+  id: number;
+  name: string;
+  companyName?: string;
+}
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+}
+
+interface UserOption {
+  id: number;
+  name: string;
 }
 
 const PLATFORMS = ['Instagram', 'Facebook', 'LinkedIn', 'Twitter', 'YouTube', 'TikTok', 'Pinterest'];
+const POST_TYPES = ['Reel', 'Carousel', 'Static Post', 'Story', 'Video', 'Blog'];
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 const getAverageColor = (imgElement: HTMLImageElement) => {
   const canvas = document.createElement('canvas');
@@ -26,8 +56,8 @@ const getAverageColor = (imgElement: HTMLImageElement) => {
   const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
   let r = 0, g = 0, b = 0, count = 0;
   for (let i = 0; i < data.length; i += 40) {
-    if (data[i+3] < 128) continue; // skip transparent
-    if (data[i] > 240 && data[i+1] > 240 && data[i+2] > 240) continue; // skip white backgrounds
+    if (data[i + 3] < 128) continue;
+    if (data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) continue;
     r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
   }
   if (count === 0) return '#2563eb';
@@ -36,84 +66,240 @@ const getAverageColor = (imgElement: HTMLImageElement) => {
 };
 
 export default function ContentCalendar() {
-  const [clientName, setClientName] = useState('');
-  const [monthYear, setMonthYear] = useState('');
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [themeColor, setThemeColor] = useState('#2563eb');
-  
-  // New AI Form State
-  const [promotionDetails, setPromotionDetails] = useState('');
-  const [numPosts, setNumPosts] = useState(5);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Instagram', 'LinkedIn']);
-  
-  const [entries, setEntries] = useState<ContentEntry[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [calendars, setCalendars] = useState<IContentCalendar[]>([]);
+  const [selectedCalendar, setSelectedCalendar] = useState<IContentCalendar | null>(null);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filter & tab states
+  const [viewMode, setViewMode] = useState<'grid' | 'preview'>('grid');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+
+  // New Calendar Modal
+  const [showNewCalendarModal, setShowNewCalendarModal] = useState(false);
+  const [newCalTitle, setNewCalTitle] = useState('');
+  const [newCalClient, setNewCalClient] = useState<number | ''>('');
+  const [newCalMonth, setNewCalMonth] = useState(new Date().getMonth() + 1);
+  const [newCalYear, setNewCalYear] = useState(new Date().getFullYear());
+  const [newCalNotes, setNewCalNotes] = useState('');
+
+  // AI Generation State
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiPromotion, setAiPromotion] = useState('');
+  const [aiNumPosts, setAiNumPosts] = useState(5);
+  const [aiPlatforms, setAiPlatforms] = useState<string[]>(['Instagram', 'LinkedIn']);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
+  // Convert to Task Modal
+  const [convertingItem, setConvertingItem] = useState<IContentItem | null>(null);
+  const [convertDept, setConvertDept] = useState<number | ''>('');
+  const [convertAssignee, setConvertAssignee] = useState<number | ''>('');
+  const [convertPriority, setConvertPriority] = useState('Medium');
+  const [isConverting, setIsConverting] = useState(false);
+
+  // Manual Add Item Modal
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [itemDate, setItemDate] = useState('');
+  const [itemPlatform, setItemPlatform] = useState('Instagram');
+  const [itemType, setItemType] = useState('Reel');
+  const [itemTopic, setItemTopic] = useState('');
+  const [itemContent, setItemContent] = useState('');
+  const [itemObjective, setItemObjective] = useState('');
+  const [itemVisual, setItemVisual] = useState('');
+  const [itemHashtags, setItemHashtags] = useState('');
+
+  // Visual Export State
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [themeColor, setThemeColor] = useState('#2563eb');
+  const [isExporting, setIsExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getIconForType = (type: string, color: string) => {
-    const t = type.toLowerCase();
-    const style = { color: 'white', fill: color };
-    if (t.includes('video') || t.includes('reel') || t.includes('short')) return <PlayCircle className="w-10 h-10" style={style} />;
-    if (t.includes('carousel')) return <Copy className="w-10 h-10" style={style} />;
-    return <ImageIcon className="w-10 h-10" style={style} />;
-  };
+  // Fetch initial data
+  const loadInitialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [cals, clisRes, deptsRes, usersRes] = await Promise.all([
+        contentCalendarService.getCalendars(),
+        api.get('/clients').catch(() => ({ data: { clients: [] } })),
+        api.get('/users/departments').catch(() => ({ data: { departments: [] } })),
+        api.get('/users').catch(() => ({ data: { users: [] } }))
+      ]);
+      setCalendars(cals);
+      setClients(clisRes.data?.clients || []);
+      setDepartments(deptsRes.data?.departments || []);
+      setUsers(usersRes.data?.users || []);
 
-  const handlePlatformToggle = (platform: string) => {
-    if (selectedPlatforms.includes(platform)) {
-      setSelectedPlatforms(selectedPlatforms.filter(p => p !== platform));
-    } else {
-      setSelectedPlatforms([...selectedPlatforms, platform]);
+      if (cals.length > 0) {
+        const fullCal = await contentCalendarService.getCalendarById(cals[0].id);
+        setSelectedCalendar(fullCal);
+      }
+    } catch (err) {
+      console.error('Failed to load initial data', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // Load a calendar by ID
+  const selectCalendar = async (id: number) => {
+    try {
+      const cal = await contentCalendarService.getCalendarById(id);
+      setSelectedCalendar(cal);
+    } catch (err) {
+      console.error('Error fetching calendar', err);
     }
   };
 
-  const handleGenerateFullCalendar = async () => {
-    if (!clientName || !promotionDetails || selectedPlatforms.length === 0) {
-      alert("Please fill in the Client Name, Promotion Details, and select at least one platform.");
-      return;
+  // Create new calendar
+  const handleCreateCalendar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCalTitle || !newCalClient) return;
+    try {
+      const created = await contentCalendarService.createCalendar({
+        title: newCalTitle,
+        clientId: Number(newCalClient),
+        month: Number(newCalMonth),
+        year: Number(newCalYear),
+        notes: newCalNotes
+      });
+      setShowNewCalendarModal(false);
+      setNewCalTitle('');
+      setNewCalNotes('');
+      await loadInitialData();
+      await selectCalendar(created.id);
+    } catch (err: unknown) {
+      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Error creating calendar';
+      alert(errorMsg);
     }
-    
+  };
+
+  // Run AI Generator
+  const handleGenerateAi = async () => {
+    if (!selectedCalendar) return;
     setIsGeneratingAi(true);
     try {
-      const { generateContentCalendar } = await import('../services/api');
-      const data = await generateContentCalendar({
-        clientName,
-        promotionDetails,
-        numPosts,
-        platforms: selectedPlatforms
+      await contentCalendarService.generateAiItems(selectedCalendar.id, {
+        numPosts: aiNumPosts,
+        platforms: aiPlatforms,
+        promotionDetails: aiPromotion
       });
-      
-      // Map data to state
-      const generatedEntries = data.map((item: any, i: number) => ({
-        id: Date.now().toString() + i,
-        date: item.date,
-        platform: item.platform,
-        type: item.type,
-        topic: item.topic,
-        content: item.content,
-        objective: item.objective,
-        visualIdea: item.visualIdea
-      }));
-      setEntries(generatedEntries);
-    } catch (err) {
-      console.error("Failed to generate calendar", err);
-      alert("Failed to generate calendar. Make sure the backend is running and Gemini API key is configured.");
+      setShowAiModal(false);
+      setAiPromotion('');
+      await selectCalendar(selectedCalendar.id);
+      alert('AI content items generated successfully! Review them in the Draft status.');
+    } catch (err: unknown) {
+      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to generate AI items';
+      alert(errorMsg);
     } finally {
       setIsGeneratingAi(false);
     }
   };
 
+  // Add Manual Item
+  const handleAddItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCalendar || !itemDate || !itemTopic || !itemContent) return;
+    try {
+      await contentCalendarService.addItem(selectedCalendar.id, {
+        scheduledDate: itemDate,
+        platform: itemPlatform,
+        postType: itemType,
+        topic: itemTopic,
+        content: itemContent,
+        objective: itemObjective,
+        visualIdea: itemVisual,
+        hashtags: itemHashtags
+      });
+      setShowAddItemModal(false);
+      setItemDate('');
+      setItemTopic('');
+      setItemContent('');
+      setItemObjective('');
+      setItemVisual('');
+      setItemHashtags('');
+      await selectCalendar(selectedCalendar.id);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add item');
+    }
+  };
+
+  // Approve Item
+  const handleApproveItem = async (itemId: number) => {
+    if (!selectedCalendar) return;
+    try {
+      await contentCalendarService.approveItem(selectedCalendar.id, itemId);
+      await selectCalendar(selectedCalendar.id);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to approve item');
+    }
+  };
+
+  // Reject Item
+  const handleRejectItem = async (itemId: number) => {
+    if (!selectedCalendar) return;
+    const reason = prompt('Reason for rejection:');
+    if (reason === null) return;
+    try {
+      await contentCalendarService.rejectItem(selectedCalendar.id, itemId, reason);
+      await selectCalendar(selectedCalendar.id);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to reject item');
+    }
+  };
+
+  // Delete Item
+  const handleDeleteItem = async (itemId: number) => {
+    if (!selectedCalendar || !confirm('Are you sure you want to delete this content item?')) return;
+    try {
+      await contentCalendarService.deleteItem(selectedCalendar.id, itemId);
+      await selectCalendar(selectedCalendar.id);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete item');
+    }
+  };
+
+  // Convert to Task
+  const handleConvertToTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCalendar || !convertingItem || !convertDept) return;
+    setIsConverting(true);
+    try {
+      await contentCalendarService.convertToTask(selectedCalendar.id, convertingItem.id, {
+        departmentId: Number(convertDept),
+        assignedToId: convertAssignee ? Number(convertAssignee) : undefined,
+        priority: convertPriority
+      });
+      setConvertingItem(null);
+      await selectCalendar(selectedCalendar.id);
+      alert('Successfully converted to task!');
+    } catch (err: unknown) {
+      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to convert to task';
+      alert(errorMsg);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  // Export handlers
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
       setLogoUrl(url);
-
       const img = new Image();
       img.src = url;
-      img.crossOrigin = "Anonymous";
+      img.crossOrigin = 'Anonymous';
       img.onload = () => {
         const color = getAverageColor(img);
         if (color) setThemeColor(color);
@@ -123,346 +309,791 @@ export default function ContentCalendar() {
 
   const downloadImage = async () => {
     if (!previewRef.current) return;
-    setIsGenerating(true);
+    setIsExporting(true);
     try {
       const dataUrl = await toPng(previewRef.current, { cacheBust: true, quality: 1, pixelRatio: 2 });
       const link = document.createElement('a');
-      link.download = `${clientName || 'Client'}_Content_Calendar.png`;
+      link.download = `${selectedCalendar?.title || 'Content_Calendar'}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error("Failed to generate image", err);
+      console.error('Failed to generate image', err);
     } finally {
-      setIsGenerating(false);
+      setIsExporting(false);
     }
   };
 
   const downloadPDF = async () => {
     if (!previewRef.current) return;
-    setIsGenerating(true);
+    setIsExporting(true);
     try {
       const dataUrl = await toPng(previewRef.current, { cacheBust: true, quality: 1, pixelRatio: 2 });
-      
-      // Calculate aspect ratio for PDF
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'px',
         format: [previewRef.current.offsetWidth, previewRef.current.offsetHeight]
       });
       pdf.addImage(dataUrl, 'PNG', 0, 0, previewRef.current.offsetWidth, previewRef.current.offsetHeight);
-      pdf.save(`${clientName || 'Client'}_Content_Calendar.pdf`);
+      pdf.save(`${selectedCalendar?.title || 'Content_Calendar'}.pdf`);
     } catch (err) {
-      console.error("Failed to generate PDF", err);
+      console.error('Failed to generate PDF', err);
     } finally {
-      setIsGenerating(false);
+      setIsExporting(false);
     }
   };
 
+  const filteredItems = (selectedCalendar?.items || []).filter(item => {
+    if (statusFilter === 'All') return true;
+    return item.status === statusFilter;
+  });
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      <div className="flex justify-between items-center">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Content Calendar Generator</h1>
-          <p className="text-gray-500">Create beautiful, branded content calendars for your clients instantly.</p>
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <CalendarIcon className="w-7 h-7 text-indigo-600" />
+            Content Calendar AI
+          </h1>
+          <p className="text-gray-500 text-sm">
+            Monthly client content planning, AI post generation, review gate, and task execution.
+          </p>
         </div>
-        <div className="flex space-x-3">
-          <button 
-            onClick={downloadImage}
-            disabled={isGenerating}
-            className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowNewCalendarModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium transition shadow-sm cursor-pointer"
           >
-            <ImageIcon className="w-4 h-4 mr-2" />
-            Save as PNG
+            <Plus className="w-4 h-4" /> New Calendar
           </button>
-          <button 
-            onClick={downloadPDF}
-            disabled={isGenerating}
-            className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download PDF
-          </button>
+          {selectedCalendar && (
+            <>
+              <button
+                onClick={() => setShowAiModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium transition shadow-sm cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" /> Generate with AI
+              </button>
+              <button
+                onClick={() => setShowAddItemModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add Post
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="space-y-12">
-        
-        {/* FORM SECTION */}
-        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center border-b pb-4">
-            <Sparkles className="w-6 h-6 mr-2 text-indigo-500" />
-            AI Calendar Generator
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Briefcase className="w-5 h-5 mr-2 text-indigo-500" />
-              Client Details
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
-                <input 
-                  type="text" 
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="e.g. Acme Corp"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                />
+      {/* Calendar Selector Bar */}
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0">
+          <span className="text-xs font-semibold uppercase text-gray-400">Calendar:</span>
+          {calendars.length === 0 ? (
+            <span className="text-sm text-gray-500">No calendars created yet.</span>
+          ) : (
+            calendars.map(cal => (
+              <button
+                key={cal.id}
+                onClick={() => selectCalendar(cal.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition whitespace-nowrap cursor-pointer ${
+                  selectedCalendar?.id === cal.id
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {cal.title} ({cal.client?.name || 'Client'})
+              </button>
+            ))
+          )}
+        </div>
+
+        {selectedCalendar && (
+          <div className="flex items-center gap-2 self-end md:self-auto">
+            <div className="bg-gray-100 p-1 rounded-lg flex text-xs font-medium">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === 'grid' ? 'bg-white shadow-xs text-gray-900 font-semibold' : 'text-gray-500'}`}
+              >
+                Workflow Grid
+              </button>
+              <button
+                onClick={() => setViewMode('preview')}
+                className={`px-3 py-1 rounded-md transition cursor-pointer ${viewMode === 'preview' ? 'bg-white shadow-xs text-gray-900 font-semibold' : 'text-gray-500'}`}
+              >
+                Branded Presentation
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-16 text-gray-500">Loading calendars...</div>
+      ) : !selectedCalendar ? (
+        <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
+          <CalendarIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-gray-700">No Content Calendar Selected</h3>
+          <p className="text-gray-500 text-sm max-w-sm mx-auto mb-4">
+            Create a monthly content calendar for your client or choose an existing one from above.
+          </p>
+          <button
+            onClick={() => setShowNewCalendarModal(true)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+          >
+            Create Your First Calendar
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Calendar Header Card */}
+          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-gray-900">{selectedCalendar.title}</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                  {MONTH_NAMES[selectedCalendar.month - 1]} {selectedCalendar.year}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                  Client: {selectedCalendar.client?.name}
+                </span>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Month / Campaign Name</label>
-                <input 
-                  type="text" 
-                  value={monthYear}
-                  onChange={(e) => setMonthYear(e.target.value)}
-                  placeholder="e.g. October 2026"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Client Logo</label>
-                <div 
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
+              {selectedCalendar.notes && (
+                <p className="text-xs text-gray-500 mt-1">{selectedCalendar.notes}</p>
+              )}
+            </div>
+
+            {/* Filter buttons */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Filter className="w-3.5 h-3.5 text-gray-400 mr-1" />
+              {['All', 'Draft', 'Approved', 'Rejected', 'ConvertedToTask'].map(st => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium cursor-pointer transition ${
+                    statusFilter === st
+                      ? 'bg-gray-800 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
                 >
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="Logo" className="h-16 mx-auto object-contain" />
-                  ) : (
-                    <div className="text-gray-500 flex flex-col items-center">
-                      <Upload className="w-6 h-6 mb-2 text-gray-400" />
-                      <span className="text-sm">Click to upload logo</span>
-                    </div>
-                  )}
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                  />
-                </div>
-                {logoUrl && (
-                  <p className="text-xs text-green-600 mt-2 flex items-center justify-center">
-                    Brand color extracted! ({themeColor})
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Theme Color</label>
-                <div className="flex items-center space-x-2">
-                  <input 
-                    type="color" 
-                    value={themeColor}
-                    onChange={(e) => setThemeColor(e.target.value)}
-                    className="h-8 w-12 rounded cursor-pointer"
-                  />
-                  <span className="text-sm text-gray-500">Pick manually if needed</span>
-                </div>
-              </div>
+                  {st === 'ConvertedToTask' ? 'Converted' : st}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">What are we promoting?</label>
-                <textarea 
-                  value={promotionDetails}
-                  onChange={(e) => setPromotionDetails(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm border rounded-md resize-none focus:ring-2 focus:ring-indigo-500 outline-none"
-                  placeholder="e.g. A new summer clothing collection for young adults. We want to highlight discounts and fresh styles."
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Number of Posts</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={numPosts}
-                    onChange={(e) => setNumPosts(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-indigo-500 outline-none"
-                  />
+          {/* VIEW MODE 1: WORKFLOW GRID */}
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredItems.length === 0 ? (
+                <div className="col-span-full bg-white p-12 text-center rounded-xl border border-dashed border-gray-200 text-gray-400">
+                  No content items found for status "{statusFilter}". Click "Generate with AI" or "Add Post" to start.
+                </div>
+              ) : (
+                filteredItems.map(item => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-xl border border-gray-200 shadow-xs hover:shadow-md transition p-5 flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Item Badges */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider bg-indigo-50 text-indigo-700">
+                            {item.platform}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-600">
+                            {item.postType}
+                          </span>
+                        </div>
+                        {item.aiGenerated && (
+                          <span className="flex items-center gap-1 text-[10px] text-purple-600 bg-purple-50 px-2 py-0.5 rounded font-medium">
+                            <Sparkles className="w-3 h-3" /> AI
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Date & Topic */}
+                      <div className="text-xs font-semibold text-gray-400 mb-1">
+                        {new Date(item.scheduledDate).toLocaleDateString('en-US', {
+                          weekday: 'short', month: 'short', day: 'numeric'
+                        })}
+                      </div>
+                      <h4 className="text-base font-bold text-gray-900 mb-2 leading-snug">
+                        {item.topic}
+                      </h4>
+                      <p className="text-xs text-gray-600 mb-3 whitespace-pre-wrap line-clamp-3">
+                        {item.content}
+                      </p>
+
+                      {/* Visual & Objective notes */}
+                      {item.visualIdea && (
+                        <div className="bg-amber-50/60 border border-amber-100 p-2 rounded text-[11px] text-amber-900 mb-2">
+                          <strong className="font-semibold">Visual: </strong>{item.visualIdea}
+                        </div>
+                      )}
+
+                      {item.hashtags && (
+                        <div className="text-[11px] text-blue-600 mb-3 truncate font-mono">
+                          {item.hashtags}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Actions / Review Gate */}
+                    <div className="pt-3 border-t border-gray-100 mt-2">
+                      <div className="flex items-center justify-between">
+                        {/* Status badge */}
+                        <div>
+                          {item.status === 'Draft' && (
+                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                              Draft Review
+                            </span>
+                          )}
+                          {item.status === 'Approved' && (
+                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                              Approved
+                            </span>
+                          )}
+                          {item.status === 'Rejected' && (
+                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                              Rejected
+                            </span>
+                          )}
+                          {item.status === 'ConvertedToTask' && (
+                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                              Task #{item.taskId}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1">
+                          {item.status === 'Draft' && (
+                            <>
+                              <button
+                                onClick={() => handleApproveItem(item.id)}
+                                title="Approve Item"
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleRejectItem(item.id)}
+                                title="Reject Item"
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded transition cursor-pointer"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+
+                          {item.status === 'Approved' && !item.taskId && (
+                            <button
+                              onClick={() => {
+                                setConvertingItem(item);
+                                if (departments.length > 0) setConvertDept(departments[0].id);
+                              }}
+                              className="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-semibold hover:bg-indigo-700 transition flex items-center gap-1 cursor-pointer"
+                            >
+                              Convert to Task <ArrowRight className="w-3 h-3" />
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleDeleteItem(item.id)}
+                            title="Delete"
+                            className="p-1.5 text-gray-400 hover:text-red-600 rounded transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {item.reviewNotes && (
+                        <div className="mt-2 text-[11px] text-gray-500 italic bg-gray-50 p-1.5 rounded">
+                          Review note: {item.reviewNotes}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* VIEW MODE 2: BRANDED PRESENTATION (PDF/PNG EXPORT) */}
+          {viewMode === 'preview' && (
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-xl border border-gray-200 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Upload Brand Logo</label>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleLogoUpload}
+                      accept="image/*"
+                      className="text-xs text-gray-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Theme Color</label>
+                    <input
+                      type="color"
+                      value={themeColor}
+                      onChange={e => setThemeColor(e.target.value)}
+                      className="w-8 h-8 rounded border border-gray-200 cursor-pointer"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={downloadImage}
+                    disabled={isExporting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-medium cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    <ImageIcon className="w-4 h-4" /> Export PNG
+                  </button>
+                  <button
+                    onClick={downloadPDF}
+                    disabled={isExporting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-medium cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4" /> Export PDF
+                  </button>
                 </div>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Target Platforms</label>
-                <div className="flex flex-wrap gap-2">
-                  {PLATFORMS.map(p => (
-                    <label key={p} className="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-full border cursor-pointer hover:bg-gray-100">
-                      <input 
-                        type="checkbox"
-                        checked={selectedPlatforms.includes(p)}
-                        onChange={() => handlePlatformToggle(p)}
-                        className="rounded text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-xs font-medium text-gray-700">{p}</span>
-                    </label>
+
+              {/* Printable Canvas */}
+              <div
+                ref={previewRef}
+                style={{ backgroundColor: '#ffffff', minHeight: '600px' }}
+                className="p-8 rounded-2xl border border-gray-200 shadow-md"
+              >
+                {/* Header Banner */}
+                <div
+                  style={{ borderBottom: `4px solid ${themeColor}` }}
+                  className="pb-6 mb-8 flex justify-between items-end"
+                >
+                  <div>
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="Logo" className="h-12 object-contain mb-2" />
+                    ) : (
+                      <h3 style={{ color: themeColor }} className="text-2xl font-black uppercase tracking-wider mb-1">
+                        {selectedCalendar.client?.name || 'Client Brand'}
+                      </h3>
+                    )}
+                    <h2 className="text-3xl font-extrabold text-gray-900">
+                      {selectedCalendar.title}
+                    </h2>
+                    <p className="text-sm font-semibold text-gray-500">
+                      {MONTH_NAMES[selectedCalendar.month - 1]} {selectedCalendar.year} • Content & Social Media Strategy
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span
+                      style={{ backgroundColor: `${themeColor}15`, color: themeColor }}
+                      className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+                    >
+                      {selectedCalendar.items?.length || 0} Scheduled Posts
+                    </span>
+                  </div>
+                </div>
+
+                {/* Printable Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {(selectedCalendar.items || []).map(item => (
+                    <div
+                      key={item.id}
+                      style={{ borderTop: `3px solid ${themeColor}` }}
+                      className="bg-gray-50/70 p-5 rounded-xl border border-gray-100 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span
+                            style={{ backgroundColor: themeColor }}
+                            className="text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase"
+                          >
+                            {item.platform}
+                          </span>
+                          <span className="text-xs font-bold text-gray-500">
+                            {new Date(item.scheduledDate).toLocaleDateString('en-US', {
+                              month: 'short', day: 'numeric'
+                            })}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-gray-900 mb-1">{item.topic}</h4>
+                        <p className="text-xs text-gray-600 line-clamp-3 mb-3">{item.content}</p>
+                        {item.visualIdea && (
+                          <div className="text-[11px] text-gray-500 bg-white p-2 rounded border border-gray-100 mb-2">
+                            <strong>Visual: </strong>{item.visualIdea}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider pt-2 border-t border-gray-200 flex justify-between">
+                        <span>Format: {item.postType}</span>
+                        <span>{item.status}</span>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
             </div>
+          )}
+        </>
+      )}
 
-            <button 
-              onClick={handleGenerateFullCalendar}
-              disabled={isGeneratingAi}
-              className="mt-6 w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-lg shadow hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
-            >
-              <Sparkles className="w-5 h-5 mr-2" />
-              {isGeneratingAi ? 'Generating Calendar...' : 'Generate Full Calendar'}
-            </button>
-          </div>
-        </div>
-
-        {/* PREVIEW SECTION */}
-        <div className="w-full">
-          <div className="bg-gray-50 p-4 md:p-8 rounded-xl border border-gray-200">
-            <p className="text-center text-gray-500 mb-6 text-sm font-medium">Live Preview (What you see is what gets exported)</p>
-            
-            {/* The actual element that gets exported */}
-            <div 
-              ref={previewRef}
-              className="bg-white shadow-lg mx-auto overflow-hidden rounded-xl"
-              style={{ width: '100%', minWidth: '800px', maxWidth: '1000px', minHeight: '600px' }}
-            >
-              {/* Header */}
-              <div 
-                className="p-8 flex justify-between items-center text-white"
-                style={{ backgroundColor: themeColor }}
-              >
-                <div>
-                  <h2 className="text-3xl font-bold mb-1 opacity-90">{clientName || 'Client Name'}</h2>
-                  <p className="text-lg opacity-80 uppercase tracking-widest">{monthYear || 'Month Year'}</p>
-                </div>
-                {logoUrl && (
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <img src={logoUrl} alt="Client Logo" className="h-16 w-auto object-contain" />
-                  </div>
-                )}
+      {/* MODAL: NEW CALENDAR */}
+      {showNewCalendarModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Create Content Calendar</h3>
+            <form onSubmit={handleCreateCalendar} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Calendar Title</label>
+                <input
+                  type="text"
+                  required
+                  value={newCalTitle}
+                  onChange={e => setNewCalTitle(e.target.value)}
+                  placeholder="e.g. Q1 Instagram Growth & Reels"
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
-              {/* Table / Grid content */}
-              <div className="p-8">
-                <div className="mb-6 flex items-center">
-                  <Calendar className="w-5 h-5 mr-2" style={{ color: themeColor }} />
-                  <h3 className="text-xl font-semibold text-gray-800">Content Schedule</h3>
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Client</label>
+                <select
+                  required
+                  value={newCalClient}
+                  onChange={e => setNewCalClient(Number(e.target.value))}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Select a Client...</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} {c.companyName ? `(${c.companyName})` : ''}</option>
+                  ))}
+                </select>
+              </div>
 
-                <div className="w-full border-2" style={{ borderColor: themeColor }}>
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="text-white text-sm tracking-widest font-bold uppercase" style={{ backgroundColor: themeColor }}>
-                        <th className="py-4 px-4 text-center border-r border-white/20 w-32">Date</th>
-                        <th className="py-4 px-4 text-center border-r border-white/20 w-32">Day</th>
-                        <th className="py-4 px-6 border-r border-white/20">Content</th>
-                        <th className="py-4 px-6 border-r border-white/20 w-48">Objective</th>
-                        <th className="py-4 px-6 w-48">CTA / Visual</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map((entry, idx) => {
-                        const isEven = idx % 2 === 0;
-                        const dateObj = entry.date ? new Date(entry.date) : null;
-                        const dayString = dateObj ? dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() : 'TBD';
-                        const dateString = dateObj ? dateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }).toUpperCase() : 'TBD';
-                        
-                        return (
-                          <tr 
-                            key={entry.id} 
-                            className="border-b"
-                            style={{ backgroundColor: isEven ? '#ffffff' : '#f9fafb', borderColor: `${themeColor}40` }}
-                          >
-                            <td className="py-6 px-4 align-middle text-center font-bold text-xl text-gray-800 border-r border-gray-200">
-                              {dateString}
-                            </td>
-                            <td className="py-6 px-4 align-middle text-center font-bold text-lg text-gray-800 border-r border-gray-200">
-                              {dayString}
-                            </td>
-                            <td className="py-6 px-6 align-top border-r border-gray-200">
-                              <div className="flex items-start">
-                                <div className="mr-4 mt-1 shrink-0">
-                                  {getIconForType(entry.type, themeColor)}
-                                </div>
-                                <div>
-                                  <h4 className="font-bold text-lg text-gray-900 leading-tight mb-2">
-                                    {entry.topic || entry.content.substring(0, 30) + '...'}
-                                  </h4>
-                                  <p className="text-sm text-gray-600 leading-snug">
-                                    {entry.content}
-                                  </p>
-                                  <div className="mt-3">
-                                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold uppercase tracking-wider" style={{ backgroundColor: `${themeColor}15`, color: themeColor }}>
-                                      <Share2 className="w-3 h-3 mr-1" />
-                                      {entry.platform} - {entry.type}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-6 px-6 align-top border-r border-gray-200">
-                              <div className="flex items-start">
-                                <Target className="w-6 h-6 mr-3 shrink-0" style={{ color: themeColor }} />
-                                <span className="font-semibold text-gray-800 text-sm leading-snug mt-0.5">
-                                  {entry.objective || 'Brand Awareness'}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-6 px-6 align-top">
-                              <div className="flex items-start">
-                                <MessageCircle className="w-6 h-6 mr-3 shrink-0" style={{ color: themeColor }} />
-                                <span className="font-semibold text-gray-800 text-sm leading-snug mt-0.5">
-                                  {entry.visualIdea || 'Link in Bio'}
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                      {entries.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="py-16 text-center bg-white">
-                            <Sparkles className="w-10 h-10 mx-auto text-gray-300 mb-4" />
-                            <p className="text-gray-500 font-medium text-lg">No content generated yet.</p>
-                            <p className="text-gray-400 mt-2">Fill out the prompt builder above to get started!</p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                  
-                  {/* Action Plan Footer */}
-                  {entries.length > 0 && (
-                    <div className="bg-gray-800 text-white p-6 grid grid-cols-2 gap-8">
-                      <div>
-                        <h4 className="font-bold text-lg mb-3 tracking-widest uppercase border-b border-gray-600 pb-2">Action Plan</h4>
-                        <ul className="space-y-2 text-sm text-gray-300">
-                          <li className="flex items-center"><div className="w-2 h-2 rounded-full mr-2" style={{backgroundColor: themeColor}}></div> Repurpose Reels to YouTube Shorts</li>
-                          <li className="flex items-center"><div className="w-2 h-2 rounded-full mr-2" style={{backgroundColor: themeColor}}></div> Reply to DMs & Comments Daily</li>
-                          <li className="flex items-center"><div className="w-2 h-2 rounded-full mr-2" style={{backgroundColor: themeColor}}></div> Run Platform-Specific Ads</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-lg mb-3 tracking-widest uppercase border-b border-gray-600 pb-2">Goal</h4>
-                        <div className="flex items-center">
-                          <Target className="w-12 h-12 mr-4" style={{ color: themeColor }} />
-                          <p className="text-sm font-medium text-gray-300 leading-relaxed">
-                            Generate quality leads, increase engagement across all platforms, and achieve the primary objectives outlined in this calendar for {clientName || 'the client'}.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Month</label>
+                  <select
+                    value={newCalMonth}
+                    onChange={e => setNewCalMonth(Number(e.target.value))}
+                    className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                  >
+                    {MONTH_NAMES.map((m, idx) => (
+                      <option key={m} value={idx + 1}>{m}</option>
+                    ))}
+                  </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Year</label>
+                  <input
+                    type="number"
+                    value={newCalYear}
+                    onChange={e => setNewCalYear(Number(e.target.value))}
+                    className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Strategy / Objective Notes</label>
+                <textarea
+                  value={newCalNotes}
+                  onChange={e => setNewCalNotes(e.target.value)}
+                  placeholder="Monthly goals, campaign themes, visual tone..."
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm h-20 outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewCalendarModal(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700"
+                >
+                  Create Calendar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AI GENERATOR */}
+      {showAiModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl">
+            <div className="flex items-center gap-2 text-purple-700 font-bold text-lg mb-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              Generate Content with AI
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Our AI will design scheduled posts for {selectedCalendar?.client?.name} for {MONTH_NAMES[(selectedCalendar?.month || 1) - 1]} {selectedCalendar?.year}.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Target Platforms</label>
+                <div className="flex flex-wrap gap-2">
+                  {PLATFORMS.map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => {
+                        if (aiPlatforms.includes(p)) {
+                          setAiPlatforms(aiPlatforms.filter(item => item !== p));
+                        } else {
+                          setAiPlatforms([...aiPlatforms, p]);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+                        aiPlatforms.includes(p)
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Number of Posts</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={aiNumPosts}
+                  onChange={e => setAiNumPosts(Number(e.target.value))}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Campaign Focus / Promotion Details</label>
+                <textarea
+                  value={aiPromotion}
+                  onChange={e => setAiPromotion(e.target.value)}
+                  placeholder="e.g. Launching a new 20% discount on web development, customer testimonials, tech tips..."
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm h-24 outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isGeneratingAi}
+                  onClick={() => setShowAiModal(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isGeneratingAi || aiPlatforms.length === 0}
+                  onClick={handleGenerateAi}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isGeneratingAi ? 'Generating...' : 'Generate Posts'}
+                </button>
               </div>
             </div>
-
           </div>
         </div>
-      </div>
+      )}
+
+      {/* MODAL: MANUAL ADD POST */}
+      {showAddItemModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Add Content Item</h3>
+            <form onSubmit={handleAddItem} className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={itemDate}
+                    onChange={e => setItemDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Platform</label>
+                  <select
+                    value={itemPlatform}
+                    onChange={e => setItemPlatform(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                  >
+                    {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Format</label>
+                  <select
+                    value={itemType}
+                    onChange={e => setItemType(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                  >
+                    {POST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Post Headline / Topic</label>
+                <input
+                  type="text"
+                  required
+                  value={itemTopic}
+                  onChange={e => setItemTopic(e.target.value)}
+                  placeholder="e.g. 5 Common SEO Mistakes in 2026"
+                  className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Post Caption & Content</label>
+                <textarea
+                  required
+                  value={itemContent}
+                  onChange={e => setItemContent(e.target.value)}
+                  placeholder="Full caption, copy, hook, and call to action..."
+                  className="w-full p-2 border border-gray-300 rounded-lg text-xs h-20 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Visual Direction / Creative Idea</label>
+                <input
+                  type="text"
+                  value={itemVisual}
+                  onChange={e => setItemVisual(e.target.value)}
+                  placeholder="e.g. Carousel with bold gradient slides or behind-the-scenes video"
+                  className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Hashtags</label>
+                <input
+                  type="text"
+                  value={itemHashtags}
+                  onChange={e => setItemHashtags(e.target.value)}
+                  placeholder="#business #growth #marketing"
+                  className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddItemModal(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700"
+                >
+                  Save Post
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONVERT TO TASK */}
+      {convertingItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Convert Content to Task</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Creating task for "{convertingItem.topic}" scheduled for {new Date(convertingItem.scheduledDate).toLocaleDateString()}.
+            </p>
+            <form onSubmit={handleConvertToTask} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
+                <select
+                  required
+                  value={convertDept}
+                  onChange={e => setConvertDept(Number(e.target.value))}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">Select Department...</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Assign To (Optional)</label>
+                <select
+                  value={convertAssignee}
+                  onChange={e => setConvertAssignee(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">Unassigned</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+                <select
+                  value={convertPriority}
+                  onChange={e => setConvertPriority(e.target.value)}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                  <option value="Urgent">Urgent</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isConverting}
+                  onClick={() => setConvertingItem(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isConverting || !convertDept}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {isConverting ? 'Creating Task...' : 'Create Task'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -41,10 +41,21 @@ interface EmployeeItem {
 }
 
 // Helper to calculate performance score
-const calculatePerformanceScore = (approved: number, overdue: number, rejected: number, dailyReports: number) => {
-  // Simple formula as requested
-  const score = (approved * 10) - (overdue * 5) - (rejected * 3) + (dailyReports * 2);
-  return Math.max(0, score); // Prevent negative score
+export const calculatePerformanceScore = (
+  approved: number,
+  overdue: number,
+  rejected: number,
+  totalTasks: number,
+  attendanceRate: number = 100
+) => {
+  const safeTotal = Math.max(0, totalTasks);
+  const onTime = Math.max(0, approved - overdue);
+  const onTimeRate = safeTotal > 0 ? onTime / safeTotal : 0;
+  const completionRate = safeTotal > 0 ? approved / safeTotal : 0;
+  const reworkPenalty = safeTotal > 0 ? rejected / safeTotal : 0;
+  const attendance = Math.max(0, Math.min(100, attendanceRate)) / 100;
+  const score = (onTimeRate * 40) + (completionRate * 30) + (attendance * 30) - (reworkPenalty * 10);
+  return Math.round(Math.max(0, Math.min(100, score)));
 };
 
 // Helper for date filtering
@@ -219,7 +230,7 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response) => {
         rejected: empRejectedTasks,
         overdue: empOverdueTasks,
         reportsSubmitted: empDailyReports,
-        score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empDailyReports)
+        score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empTotalTasks, 100)
       };
     });
 
@@ -393,7 +404,7 @@ export const getManagerDashboard = async (req: AuthRequest, res: Response) => {
         rejected: empRejectedTasks,
         overdue: empOverdueTasks,
         reportsSubmitted: empDailyReports,
-        score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empDailyReports)
+        score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empTotalTasks, 100)
       };
     });
 

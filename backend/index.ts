@@ -25,9 +25,11 @@ import analyticsRoutes from './routes/analyticsRoutes';
 import reminderRoutes from './routes/reminderRoutes';
 import meetingRoutes from './routes/meetingRoutes';
 import schedulerRoutes from './routes/schedulerRoutes';
+import contentCalendarRoutes from './routes/contentCalendarRoutes';
 import crmRoutes from './routes/crmRoutes';
 import financeRoutes from './routes/financeRoutes';
 import attendanceRoutes from './routes/attendanceRoutes';
+import portalRoutes from './routes/portalRoutes';
 import { startScheduler } from './workers/scheduler';
 
 const app = express();
@@ -83,9 +85,11 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/scheduler', schedulerRoutes);
+app.use('/api/content-calendars', contentCalendarRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/portal', portalRoutes);
 
 // Other routes will be added later
 

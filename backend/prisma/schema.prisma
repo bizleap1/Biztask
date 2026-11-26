@@ -51,6 +51,8 @@ model User {
   attendanceRecords      Attendance[]
   leaveRequests          LeaveRequest[]
   leaveApprovals         LeaveRequest[]      @relation("LeaveApprover")
+  contentCalendars       ContentCalendar[]   @relation("CalendarCreator")
+  contentItems           ContentItem[]       @relation("ContentItemCreator")
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
 
@@ -116,6 +118,7 @@ model Client {
   meetings         Meeting[]
   deals            Deal[]
   invoices         Invoice[]
+  contentCalendars ContentCalendar[]
   isActive         Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -221,6 +224,8 @@ model Task {
   meetingId           Int?
   meeting             Meeting?            @relation(fields: [meetingId], references: [id])
   actionItems         MeetingActionItem[]
+  contentItem         ContentItem?
+  clientVisible       Boolean             @default(false)
   isDeleted           Boolean             @default(false)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -623,4 +628,55 @@ model Holiday {
 
   @@unique([date])
   @@index([isActive])
+}
+
+model ContentCalendar {
+  id          Int           @id @default(autoincrement())
+  title       String
+  month       Int // 1-12
+  year        Int
+  clientId    Int
+  client      Client        @relation(fields: [clientId], references: [id])
+  createdById Int
+  createdBy   User          @relation("CalendarCreator", fields: [createdById], references: [id])
+  status      String        @default("Draft") // Draft, Active, Completed, Archived
+  notes       String?
+  items       ContentItem[]
+  isDeleted   Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([clientId, month, year])
+  @@index([clientId])
+  @@index([createdById])
+  @@index([status])
+}
+
+model ContentItem {
+  id            Int             @id @default(autoincrement())
+  calendarId    Int
+  calendar      ContentCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  scheduledDate DateTime
+  platform      String // Instagram, Facebook, LinkedIn, Twitter, YouTube, Website, Other
+  postType      String // Reel, Carousel, Static Post, Story, Blog, Video
+  topic         String
+  content       String
+  objective     String?
+  visualIdea    String?
+  hashtags      String?
+  status        String          @default("Draft") // Draft, Approved, Rejected, ConvertedToTask
+  reviewNotes   String?
+  taskId        Int?            @unique
+  task          Task?           @relation(fields: [taskId], references: [id])
+  createdById   Int
+  createdBy     User            @relation("ContentItemCreator", fields: [createdById], references: [id])
+  aiGenerated   Boolean         @default(false)
+  isDeleted     Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([calendarId])
+  @@index([scheduledDate])
+  @@index([status])
+  @@index([platform])
 }

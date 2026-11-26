@@ -56,6 +56,7 @@ export default function Tasks() {
     deadline: '',
     proofRequired: true,
     proofType: '',
+    clientVisible: false,
     status: 'Pending'
   });
 
@@ -159,7 +160,7 @@ export default function Tasks() {
       // Reset
       setFormData({
         title: '', description: '', departmentId: '', category: '',
-        assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: '', status: 'Pending'
+        assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: '', clientVisible: false, status: 'Pending'
       });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create task');
@@ -279,7 +280,7 @@ export default function Tasks() {
               setEditingTaskId(null);
               setFormData({
                 title: '', description: '', departmentId: '', category: '',
-                assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: '', status: 'Pending'
+                assignedToId: '', priority: 'Medium', deadline: '', proofRequired: true, proofType: '', clientVisible: false, status: 'Pending'
               });
               setShowAddModal(true);
             }}
@@ -539,6 +540,7 @@ export default function Tasks() {
                               deadline: new Date(t.deadline).toISOString().split('T')[0],
                               proofRequired: t.proofRequired,
                               proofType: t.proofType || '',
+                              clientVisible: t.clientVisible === true,
                               status: t.status
                             });
                             setShowAddModal(true);
@@ -707,6 +709,10 @@ export default function Tasks() {
                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
                       <input type="checkbox" checked={formData.proofRequired} onChange={e => setFormData({...formData, proofRequired: e.target.checked})} className="rounded text-[var(--color-brand-black)] focus:ring-gray-300" />
                       Require proof submission
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                      <input type="checkbox" checked={formData.clientVisible} onChange={e => setFormData({...formData, clientVisible: e.target.checked})} className="rounded text-[var(--color-brand-black)] focus:ring-gray-300" />
+                      Share with client
                     </label>
                   </div>
                   {editingTaskId && (

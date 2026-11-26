@@ -10,7 +10,7 @@ import prisma from '../prismaClient';
 // @access  Private/SuperAdmin, Manager
 export const createTask = async (req: AuthRequest, res: Response) => {
   try {
-    const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType, clientId, projectId, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment } = req.body;
+    const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType, clientId, projectId, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, clientVisible } = req.body;
 
     // Validate assigned employee belongs to department
     if (assignedToId) {
@@ -50,6 +50,7 @@ export const createTask = async (req: AuthRequest, res: Response) => {
         postType,
         githubRepo,
         environment,
+        clientVisible: typeof clientVisible === 'boolean' ? clientVisible : false,
       },
     });
 
@@ -231,7 +232,7 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const { title, description, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, status } = req.body;
+    const { title, description, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, status, clientVisible } = req.body;
 
     if (status !== undefined && status !== existingTask.status && !isAdminOrManager) {
       return res.status(403).json({ message: 'Only SuperAdmin or Manager can change task status directly' });
@@ -266,7 +267,8 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
         postType,
         githubRepo,
         environment,
-        status: isAdminOrManager ? status : undefined
+        status: isAdminOrManager ? status : undefined,
+        clientVisible: isAdminOrManager && typeof clientVisible === 'boolean' ? clientVisible : undefined
       }
     });
 

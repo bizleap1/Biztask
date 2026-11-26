@@ -3,15 +3,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getHrDashboard = exports.getEmployeeDashboard = exports.getManagerDashboard = exports.getAdminDashboard = void 0;
+exports.getHrDashboard = exports.getEmployeeDashboard = exports.getManagerDashboard = exports.getAdminDashboard = exports.calculatePerformanceScore = void 0;
 const reportUtils_1 = require("../utils/reportUtils");
 const prismaClient_1 = __importDefault(require("../prismaClient"));
 // Helper to calculate performance score
-const calculatePerformanceScore = (approved, overdue, rejected, dailyReports) => {
-    // Simple formula as requested
-    const score = (approved * 10) - (overdue * 5) - (rejected * 3) + (dailyReports * 2);
-    return Math.max(0, score); // Prevent negative score
+const calculatePerformanceScore = (approved, overdue, rejected, totalTasks, attendanceRate = 100) => {
+    const safeTotal = Math.max(0, totalTasks);
+    const onTime = Math.max(0, approved - overdue);
+    const onTimeRate = safeTotal > 0 ? onTime / safeTotal : 0;
+    const completionRate = safeTotal > 0 ? approved / safeTotal : 0;
+    const reworkPenalty = safeTotal > 0 ? rejected / safeTotal : 0;
+    const attendance = Math.max(0, Math.min(100, attendanceRate)) / 100;
+    const score = (onTimeRate * 40) + (completionRate * 30) + (attendance * 30) - (reworkPenalty * 10);
+    return Math.round(Math.max(0, Math.min(100, score)));
 };
+exports.calculatePerformanceScore = calculatePerformanceScore;
 // Helper for date filtering
 const getDateFilter = (startDate, endDate) => {
     if (startDate && endDate) {
@@ -156,7 +162,7 @@ const getAdminDashboard = async (req, res) => {
                 rejected: empRejectedTasks,
                 overdue: empOverdueTasks,
                 reportsSubmitted: empDailyReports,
-                score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empDailyReports)
+                score: (0, exports.calculatePerformanceScore)(empApprovedTasks, empOverdueTasks, empRejectedTasks, empTotalTasks, 100)
             };
         });
         const [atRiskSetting, atRiskClientsRaw] = await Promise.all([
@@ -306,7 +312,7 @@ const getManagerDashboard = async (req, res) => {
                 rejected: empRejectedTasks,
                 overdue: empOverdueTasks,
                 reportsSubmitted: empDailyReports,
-                score: calculatePerformanceScore(empApprovedTasks, empOverdueTasks, empRejectedTasks, empDailyReports)
+                score: (0, exports.calculatePerformanceScore)(empApprovedTasks, empOverdueTasks, empRejectedTasks, empTotalTasks, 100)
             };
         });
         const departmentTaskStats = {

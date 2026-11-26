@@ -12,7 +12,7 @@ const prismaClient_1 = __importDefault(require("../prismaClient"));
 // @access  Private/SuperAdmin, Manager
 const createTask = async (req, res) => {
     try {
-        const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType, clientId, projectId, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment } = req.body;
+        const { title, description, departmentId, category, assignedToId, priority, deadline, proofRequired, proofType, clientId, projectId, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, clientVisible } = req.body;
         // Validate assigned employee belongs to department
         if (assignedToId) {
             const user = await prismaClient_1.default.user.findUnique({ where: { id: Number(assignedToId) } });
@@ -50,6 +50,7 @@ const createTask = async (req, res) => {
                 postType,
                 githubRepo,
                 environment,
+                clientVisible: typeof clientVisible === 'boolean' ? clientVisible : false,
             },
         });
         await (0, activityLogUtils_1.createActivityLog)({
@@ -230,7 +231,7 @@ const updateTask = async (req, res) => {
                 return res.status(403).json({ message: 'Cannot edit an approved task' });
             }
         }
-        const { title, description, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, status } = req.body;
+        const { title, description, category, assignedToId, priority, deadline, proofRequired, proofType, clientName, clientDetails, driveLink, socialMediaPlatform, postType, githubRepo, environment, status, clientVisible } = req.body;
         if (status !== undefined && status !== existingTask.status && !isAdminOrManager) {
             return res.status(403).json({ message: 'Only SuperAdmin or Manager can change task status directly' });
         }
@@ -261,7 +262,8 @@ const updateTask = async (req, res) => {
                 postType,
                 githubRepo,
                 environment,
-                status: isAdminOrManager ? status : undefined
+                status: isAdminOrManager ? status : undefined,
+                clientVisible: isAdminOrManager && typeof clientVisible === 'boolean' ? clientVisible : undefined
             }
         });
         await (0, activityLogUtils_1.createActivityLog)({

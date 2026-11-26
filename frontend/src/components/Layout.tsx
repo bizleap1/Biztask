@@ -140,6 +140,11 @@ export default function Layout() {
           <Link to="/attendance" className={getLinkClass('/attendance')} onClick={() => setSidebarOpen(false)}>
             <Clock size={18} /> Attendance
           </Link>
+          {user.role === 'ClientUser' && (
+            <Link to="/portal" className={getLinkClass('/portal')} onClick={() => setSidebarOpen(false)}>
+              <Briefcase size={18} /> Client Portal
+            </Link>
+          )}
               </>
             );
           })()}
