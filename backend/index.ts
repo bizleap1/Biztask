@@ -22,6 +22,8 @@ import clientRoutes from './routes/clientRoutes';
 import projectRoutes from './routes/projectRoutes';
 import settingRoutes from './routes/settingRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
+import reminderRoutes from './routes/reminderRoutes';
+import meetingRoutes from './routes/meetingRoutes';
 
 const app = express();
 import prisma from './prismaClient';
@@ -73,6 +75,8 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/reminders', reminderRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 // Other routes will be added later
 

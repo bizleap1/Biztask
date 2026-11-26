@@ -9,40 +9,44 @@ datasource db {
 }
 
 model User {
-  id                     Int                @id @default(autoincrement())
+  id                     Int                 @id @default(autoincrement())
   name                   String
-  email                  String             @unique
+  email                  String              @unique
   password               String
-  role                   String             @default("Employee") // SuperAdmin, Manager, TeamLead, Employee, ClientUser (legacy: DevEmployee, MediaEmployee, Viewer)
+  role                   String              @default("Employee") // SuperAdmin, Manager, TeamLead, Employee, ClientUser (legacy: DevEmployee, MediaEmployee, Viewer)
   designation            String?
   phone                  String?
   whatsappNumber         String?
   avatarUrl              String?
-  googleId               String?            @unique
-  tokenVersion           Int                @default(0)
-  isActive               Boolean            @default(true)
-  mustChangePassword     Boolean            @default(true)
-  resetPasswordRequested Boolean            @default(false)
-  canResetPassword       Boolean            @default(false)
+  googleId               String?             @unique
+  tokenVersion           Int                 @default(0)
+  isActive               Boolean             @default(true)
+  mustChangePassword     Boolean             @default(true)
+  resetPasswordRequested Boolean             @default(false)
+  canResetPassword       Boolean             @default(false)
   resetTokenHash         String?
   resetTokenExpiresAt    DateTime?
   departmentId           Int?
-  department             Department?        @relation(fields: [departmentId], references: [id])
-  assignedTasks          Task[]             @relation("AssignedTo")
-  createdTasks           Task[]             @relation("AssignedBy")
-  submissions            TaskSubmission[]   @relation("UserSubmissions")
-  reviewedSubmissions    TaskSubmission[]   @relation("ReviewedBy")
-  dailyReports           DailyReport[]      @relation("ReportOwner")
-  reviewedDailyReports   DailyReport[]      @relation("ReportReviewedBy")
+  department             Department?         @relation(fields: [departmentId], references: [id])
+  assignedTasks          Task[]              @relation("AssignedTo")
+  createdTasks           Task[]              @relation("AssignedBy")
+  submissions            TaskSubmission[]    @relation("UserSubmissions")
+  reviewedSubmissions    TaskSubmission[]    @relation("ReviewedBy")
+  dailyReports           DailyReport[]       @relation("ReportOwner")
+  reviewedDailyReports   DailyReport[]       @relation("ReportReviewedBy")
   activityLogs           ActivityLog[]
   comments               Comment[]
   notifications          Notification[]
-  ledTeams               Team[]             @relation("TeamLead")
+  ledTeams               Team[]              @relation("TeamLead")
   teamMemberships        TeamMembership[]
-  managedClients         Client[]           @relation("AccountManager")
+  managedClients         Client[]            @relation("AccountManager")
   clientMemberships      ClientMembership[]
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
+  organizedMeetings      Meeting[]           @relation("MeetingOrganizer")
+  meetingAttendances     MeetingAttendee[]
+  meetingMinutes         MeetingMinute[]
+  meetingActionItems     MeetingActionItem[] @relation("ActionItemAssignee")
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
   @@index([role])
   @@index([departmentId])
@@ -103,6 +107,7 @@ model Client {
   contacts         ClientContact[]
   projects         Project[]
   tasks            Task[]
+  meetings         Meeting[]
   isActive         Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -177,37 +182,40 @@ model ClientMembership {
 }
 
 model Task {
-  id             Int              @id @default(autoincrement())
-  title          String
-  description    String
-  category       String
-  priority       String           @default("Medium") // Low, Medium, High, Urgent
-  status         String           @default("Pending") // Pending, In Progress, Submitted, Approved, Rejected, Overdue
-  deadline       DateTime
-  proofRequired  Boolean          @default(true)
-  proofType      String?          // Image, PDF, Video, Link, Screenshot, GitHub PR, Website URL, Social Media Link
-  clientId       Int?
-  client         Client?          @relation(fields: [clientId], references: [id])
-  projectId      Int?
-  project        Project?         @relation(fields: [projectId], references: [id])
-  clientName     String?          // General Project Field (legacy/display fallback)
-  clientDetails  String?          // General Project Field
-  driveLink      String?          // General Project Field
-  socialMediaPlatform String?     // Media Dept Field
-  postType       String?          // Media Dept Field
-  githubRepo     String?          // Dev Dept Field
-  environment    String?          // Dev Dept Field
-  departmentId   Int
-  department     Department       @relation(fields: [departmentId], references: [id])
-  assignedToId   Int?
-  assignedTo     User?            @relation("AssignedTo", fields: [assignedToId], references: [id])
-  assignedById   Int
-  assignedBy     User             @relation("AssignedBy", fields: [assignedById], references: [id])
-  submissions    TaskSubmission[]
-  comments       Comment[]
-  isDeleted      Boolean          @default(false)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                  Int                 @id @default(autoincrement())
+  title               String
+  description         String
+  category            String
+  priority            String              @default("Medium") // Low, Medium, High, Urgent
+  status              String              @default("Pending") // Pending, In Progress, Submitted, Approved, Rejected, Overdue
+  deadline            DateTime
+  proofRequired       Boolean             @default(true)
+  proofType           String? // Image, PDF, Video, Link, Screenshot, GitHub PR, Website URL, Social Media Link
+  clientId            Int?
+  client              Client?             @relation(fields: [clientId], references: [id])
+  projectId           Int?
+  project             Project?            @relation(fields: [projectId], references: [id])
+  clientName          String? // General Project Field (legacy/display fallback)
+  clientDetails       String? // General Project Field
+  driveLink           String? // General Project Field
+  socialMediaPlatform String? // Media Dept Field
+  postType            String? // Media Dept Field
+  githubRepo          String? // Dev Dept Field
+  environment         String? // Dev Dept Field
+  departmentId        Int
+  department          Department          @relation(fields: [departmentId], references: [id])
+  assignedToId        Int?
+  assignedTo          User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedById        Int
+  assignedBy          User                @relation("AssignedBy", fields: [assignedById], references: [id])
+  submissions         TaskSubmission[]
+  comments            Comment[]
+  meetingId           Int?
+  meeting             Meeting?            @relation(fields: [meetingId], references: [id])
+  actionItems         MeetingActionItem[]
+  isDeleted           Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@index([status])
   @@index([departmentId])
@@ -215,6 +223,82 @@ model Task {
   @@index([clientId])
   @@index([projectId])
   @@index([deadline])
+  @@index([meetingId])
+}
+
+model Meeting {
+  id              Int                 @id @default(autoincrement())
+  title           String
+  description     String?
+  agenda          String?
+  startAt         DateTime
+  durationMinutes Int                 @default(30)
+  locationLink    String?
+  status          String              @default("Scheduled") // Scheduled, Completed, Cancelled
+  repeatWeekly    Boolean             @default(false)
+  organizerId     Int
+  organizer       User                @relation("MeetingOrganizer", fields: [organizerId], references: [id])
+  clientId        Int?
+  client          Client?             @relation(fields: [clientId], references: [id])
+  attendees       MeetingAttendee[]
+  minutes         MeetingMinute[]
+  actionItems     MeetingActionItem[]
+  tasks           Task[]
+  externalEventId String?
+  isDeleted       Boolean             @default(false)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([startAt])
+  @@index([organizerId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model MeetingAttendee {
+  id        Int      @id @default(autoincrement())
+  meetingId Int
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  response  String   @default("Pending") // Pending, Accepted, Declined
+  createdAt DateTime @default(now())
+
+  @@unique([meetingId, userId])
+  @@index([userId])
+}
+
+model MeetingMinute {
+  id           Int      @id @default(autoincrement())
+  meetingId    Int
+  meeting      Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  content      String
+  recordedById Int
+  recordedBy   User     @relation(fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([meetingId])
+}
+
+model MeetingActionItem {
+  id          Int       @id @default(autoincrement())
+  meetingId   Int
+  meeting     Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  assigneeId  Int?
+  assignee    User?     @relation("ActionItemAssignee", fields: [assigneeId], references: [id])
+  dueDate     DateTime?
+  status      String    @default("Open") // Open, Converted, Completed
+  taskId      Int?
+  task        Task?     @relation(fields: [taskId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([taskId])
+  @@index([meetingId])
+  @@index([assigneeId])
 }
 
 model TaskSubmission {
@@ -244,55 +328,55 @@ model TaskSubmission {
 }
 
 model DailyReport {
-  id              Int      @id @default(autoincrement())
+  id              Int        @id @default(autoincrement())
   userId          Int
-  user            User     @relation("ReportOwner", fields: [userId], references: [id])
+  user            User       @relation("ReportOwner", fields: [userId], references: [id])
   departmentId    Int
   department      Department @relation(fields: [departmentId], references: [id])
-  reportDate      DateTime @default(now())
+  reportDate      DateTime   @default(now())
   workCompleted   String
   pendingWork     String
   blockers        String?
   tomorrowPlan    String
   attachments     String
-  taskIds         String?  // JSON array of Task IDs
-  status          String   @default("Submitted") // Submitted, Reviewed, Needs Correction
+  taskIds         String? // JSON array of Task IDs
+  status          String     @default("Submitted") // Submitted, Reviewed, Needs Correction
   managerFeedback String?
   reviewedById    Int?
-  reviewedBy      User?    @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
+  reviewedBy      User?      @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
-  isDeleted       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   @@index([reportDate])
   @@index([departmentId])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  title     String
-  message   String
-  isRead    Boolean  @default(false)
-  type       String   // e.g. task_assigned, employee_created
-  entityType String?  // e.g. User, Task, DailyReport
-  entityId   Int?     // the ID of the entity
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  title      String
+  message    String
+  isRead     Boolean  @default(false)
+  type       String // e.g. task_assigned, employee_created
+  entityType String? // e.g. User, Task, DailyReport
+  entityId   Int? // the ID of the entity
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
 }
 
 model ActivityLog {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
   action      String
   entityType  String?
   entityId    Int?
   description String?
-  metadata    String?  // Store JSON as string
+  metadata    String? // Store JSON as string
   ipAddress   String?
   userAgent   String?
   isDeleted   Boolean  @default(false)

@@ -65,13 +65,25 @@ export default function NotificationBell() {
       handleMarkAsRead(notif.id);
     }
     setIsOpen(false);
-    // Navigate based on entity type
-    if (notif.entityType === 'Task' || notif.entityType === 'TaskSubmission') {
-      navigate('/tasks');
+
+    const userStr = sessionStorage.getItem('user');
+    const role: string = userStr ? (JSON.parse(userStr).role || '') : '';
+    const isPrivileged = ['SuperAdmin', 'Manager', 'TeamLead'].includes(role);
+    const isAdminOrManager = ['SuperAdmin', 'Manager'].includes(role);
+
+    // Role-aware navigation based on entity type
+    if (notif.entityType === 'Task') {
+      if (notif.entityId) {
+        navigate(`/tasks/${notif.entityId}`);
+      } else {
+        navigate(isPrivileged ? '/tasks' : '/my-tasks');
+      }
+    } else if (notif.entityType === 'TaskSubmission') {
+      navigate(isPrivileged ? '/review-submissions' : '/my-tasks');
     } else if (notif.entityType === 'DailyReport') {
-      navigate('/daily-reports');
+      navigate(isPrivileged ? '/daily-reports' : '/my-daily-reports');
     } else if (notif.entityType === 'User') {
-      navigate('/employees');
+      navigate(isAdminOrManager ? '/employees' : '/notifications');
     } else {
       navigate('/notifications');
     }

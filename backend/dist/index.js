@@ -26,6 +26,8 @@ const clientRoutes_1 = __importDefault(require("./routes/clientRoutes"));
 const projectRoutes_1 = __importDefault(require("./routes/projectRoutes"));
 const settingRoutes_1 = __importDefault(require("./routes/settingRoutes"));
 const analyticsRoutes_1 = __importDefault(require("./routes/analyticsRoutes"));
+const reminderRoutes_1 = __importDefault(require("./routes/reminderRoutes"));
+const meetingRoutes_1 = __importDefault(require("./routes/meetingRoutes"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -70,6 +72,8 @@ app.use('/api/clients', clientRoutes_1.default);
 app.use('/api/projects', projectRoutes_1.default);
 app.use('/api/settings', settingRoutes_1.default);
 app.use('/api/analytics', analyticsRoutes_1.default);
+app.use('/api/reminders', reminderRoutes_1.default);
+app.use('/api/meetings', meetingRoutes_1.default);
 // Other routes will be added later
 if (process.env.NODE_ENV !== 'test' && (process.env.NODE_ENV !== 'production' || !process.env.VERCEL)) {
     app.listen(PORT, () => {

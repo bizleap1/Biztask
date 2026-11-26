@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { createActivityLog } from '../utils/activityLogUtils';
 import { createNotification } from '../utils/notificationUtils';
 import { AuthRequest } from '../middleware/authMiddleware';
@@ -40,7 +41,7 @@ export const submitTask = async (req: AuthRequest, res: Response) => {
       : 100;
 
     // Create Submission and update Task status atomically
-    const submission = await prisma.$transaction(async (tx) => {
+    const submission = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const created = await tx.taskSubmission.create({
         data: {
           taskId,
@@ -118,7 +119,7 @@ export const approveSubmission = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: `Submission is already ${submission.reviewStatus}` });
     }
 
-    const updatedSubmission = await prisma.$transaction(async (tx) => {
+    const updatedSubmission = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const updated = await tx.taskSubmission.update({
         where: { id: submissionId },
         data: {
@@ -184,7 +185,7 @@ export const rejectSubmission = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: `Submission is already ${submission.reviewStatus}` });
     }
 
-    const updatedSubmission = await prisma.$transaction(async (tx) => {
+    const updatedSubmission = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const updated = await tx.taskSubmission.update({
         where: { id: submissionId },
         data: {

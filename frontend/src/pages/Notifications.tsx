@@ -112,7 +112,7 @@ export default function Notifications() {
             {notifications.map((notif) => (
               <div 
                 key={notif.id} 
-                className={`p-4 flex items-start gap-4 transition-colors ${!notif.isRead ? 'bg-gray-50/40' : 'hover:bg-gray-50'}`}
+                className={`group p-4 flex items-start gap-4 transition-colors ${!notif.isRead ? 'bg-gray-50/40' : 'hover:bg-gray-50'}`}
               >
                 <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!notif.isRead ? 'bg-blue-600' : 'bg-transparent'}`} />
                 <div className="flex-1">
@@ -128,7 +128,7 @@ export default function Notifications() {
                     {notif.message}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 sm:opacity-100">
+                <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   {!notif.isRead && (
                     <button 
                       onClick={() => handleMarkAsRead(notif.id)}

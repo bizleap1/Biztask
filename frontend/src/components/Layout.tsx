@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar, Briefcase, BarChart3 } from 'lucide-react';
+import { Home, CheckSquare, FileText, Settings, LogOut, Users, Activity, Menu, X, Calendar, Briefcase, BarChart3, BellRing } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import Logo from './Logo';
 import api from '../services/api';
@@ -71,6 +71,9 @@ export default function Layout() {
               <Link to="/daily-reports" className={getLinkClass('/daily-reports')} onClick={() => setSidebarOpen(false)}>
                 <FileText size={18} /> Daily Reports
               </Link>
+              <Link to="/meetings" className={getLinkClass('/meetings')} onClick={() => setSidebarOpen(false)}>
+                <Calendar size={18} /> Meetings
+              </Link>
             </>
           )}
           {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'MediaEmployee' || user.role === 'Employee') && (
@@ -112,6 +115,11 @@ export default function Layout() {
           {user.role === 'SuperAdmin' && (
             <Link to="/settings" className={getLinkClass('/settings')} onClick={() => setSidebarOpen(false)}>
               <Settings size={18} /> Settings
+            </Link>
+          )}
+          {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'TeamLead' || user.role === 'Employee' || user.role === 'DevEmployee' || user.role === 'MediaEmployee') && (
+            <Link to="/reminders" className={getLinkClass('/reminders')} onClick={() => setSidebarOpen(false)}>
+              <BellRing size={18} /> Reminders
             </Link>
           )}
           {(user.role === 'SuperAdmin' || user.role === 'Manager' || user.role === 'TeamLead' || user.role === 'Employee') && (

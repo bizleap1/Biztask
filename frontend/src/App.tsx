@@ -18,6 +18,8 @@ import ContentCalendar from './pages/ContentCalendar';
 import Settings from './pages/Settings';
 import Clients from './pages/Clients';
 import Analytics from './pages/Analytics';
+import Reminders from './pages/Reminders';
+import Meetings from './pages/Meetings';
 import { AuthGuard } from './components/AuthGuard';
 
 function App() {
@@ -75,6 +77,11 @@ function App() {
           </AuthGuard>
         } />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="reminders" element={
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee']}>
+            <Reminders />
+          </AuthGuard>
+        } />
         <Route path="activity-logs" element={
           <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'Viewer']}>
             <ActivityLogs />
@@ -94,6 +101,11 @@ function App() {
         <Route path="analytics" element={
           <AuthGuard allowedRoles={['SuperAdmin', 'Manager']}>
             <Analytics />
+          </AuthGuard>
+        } />
+        <Route path="meetings" element={
+          <AuthGuard allowedRoles={['SuperAdmin', 'Manager', 'TeamLead', 'Employee', 'DevEmployee', 'MediaEmployee']}>
+            <Meetings />
           </AuthGuard>
         } />
       </Route>
